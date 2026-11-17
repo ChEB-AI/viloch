@@ -593,8 +593,7 @@ def aux_label(pred: str) -> str:
     trailing ChEBI-id disambiguation suffix (``aux_acyclic_molecule_36685`` ->
     ``acyclic molecule``)."""
     name = pred[len("aux_") :] if pred.startswith("aux_") else pred
-    name = re.sub(r"_\d{4,}$", "", name)
-    return name.replace("_", " ").strip()
+    return _ID_SUFFIX_RE.sub("", name).replace("_", " ").strip()
 
 
 @functools.lru_cache(maxsize=4)
@@ -697,14 +696,13 @@ def aux_blocks(
     for n in new:
         label = aux_label(n) or n
         counts[label] = counts.get(label, 0) + 1
-        m = _ID_SUFFIX_RE.search(n)
         chosen.append(
             (
                 n,
                 rule_descriptions[n],
                 _head_arity(rule or "", n, fallback=False),
                 label,
-                m.group(1) if m else None,
+                _origin(n, {}),
                 roles.get((n, 0)),
             )
         )

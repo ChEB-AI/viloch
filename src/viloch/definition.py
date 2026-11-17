@@ -20,6 +20,8 @@ import os
 import re
 from dataclasses import dataclass, field, replace
 
+DEFAULT_TARGET = "concept"  # the head predicate of an edited rule, unless named
+
 _HEAD_RE = re.compile(r"^([a-z_][A-Za-z0-9_]*)\s*(?:\(|$)")
 _HEADER_RE = re.compile(r"^%\s*(PREDICATE_NAME|DESCRIPTION)\s*:\s*(.+?)\s*$", re.I)
 _CALL_RE = re.compile(r"(?<![A-Za-z0-9_])([a-z][A-Za-z0-9_]*)\s*\(")
@@ -33,6 +35,11 @@ class AuxProgram:
     name: str
     source: str
     description: str = ""
+
+    @classmethod
+    def from_dict(cls, d: dict) -> AuxProgram:
+        """From the ``{"name", "description", "source"}`` form (see :meth:`as_dict`)."""
+        return cls(d["name"], d["source"], d.get("description") or "")
 
     def as_dict(self) -> dict:
         """The ``{"name", "description", "source"}`` form the explainer takes."""
@@ -63,9 +70,9 @@ class Definition:
     def parse(cls, text: str, target: str | None = None) -> Definition:
         """Split ``text`` into the main rule and auxiliary programs.
 
-        The main rule is the clauses of ``target`` if given. Otherwise it is the one
-        predicate no other clause uses; if that is ambiguous, the last predicate
-        defined. Clauses keep their text (one line each); ``%`` comments other than
+        The main rule is the clauses of ``target`` if given (none if ``text`` has no
+        ``target`` clause). Otherwise it is the one predicate no other clause uses; if
+        that is ambiguous, the last predicate defined. Clauses keep their text (one line each); ``%`` comments other than
         the ``PREDICATE_NAME`` / ``DESCRIPTION`` headers are dropped.
         """
         order, groups = [], {}
@@ -79,14 +86,14 @@ class Definition:
             groups[head].append(clause)
         if not order:
             return cls("", (), target)
-        main = target if target in groups else _main_predicate(order, groups)
+        main = target or _main_predicate(order, groups)
         descriptions = header_descriptions(text)
         aux = tuple(
             AuxProgram(n, "\n".join(groups[n]), descriptions.get(n, ""))
             for n in order
             if n != main
         )
-        return cls("\n".join(groups[main]), aux, target or main)
+        return cls("\n".join(groups.get(main, [])), aux, main)
 
     @classmethod
     def from_file(cls, path: str, target: str | None = None) -> Definition:
@@ -103,10 +110,6 @@ class Definition:
         """The auxiliary programs as the explainer's ``{"name", "description", "source"}``."""
         return [p.as_dict() for p in self.aux]
 
-    def programs_key(self) -> tuple[tuple[str, str], ...]:
-        """``((name, source), …)``: a hashable key of the programs (for caching)."""
-        return tuple((p.name, p.source) for p in self.aux)
-
     def used_aux(self) -> list[str]:
         """``aux_*`` predicates the rule or its programs use but do not define."""
         text = self.rule + "\n" + "\n".join(p.source for p in self.aux)
@@ -120,9 +123,6 @@ class Definition:
         return "\n\n".join(p for p in parts if p.strip()) + "\n"
 
     # ── transformations ────────────────────────────────────────────────────
-
-    def with_rule(self, rule: str) -> Definition:
-        return replace(self, rule=rule)
 
     def with_descriptions(self, descriptions: dict[str, str]) -> Definition:
         """Fill in missing aux descriptions from ``descriptions``."""

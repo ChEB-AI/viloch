@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import clingo
 
-from viloch.explain.molecule import BOND_PREDS, MOL_ID, MOL_PREDS, MolContext, is_var
+from viloch.explain.molecule import BOND_PREDS, MOL_ID, MolContext, is_var
 from viloch.logic.rule_ir import (
     Agg,
     Clause,
@@ -192,17 +192,3 @@ def near_miss(tc: TClause, ctx: MolContext, timeout: float = 8.0) -> NearMiss:
 def rank_key(nm: NearMiss):
     """Fewer failing conditions first, then a larger satisfied share of the clause."""
     return (len(nm.unsat), -nm.score)
-
-
-def rule_holds(tclauses, ctx: MolContext) -> bool:
-    from viloch.explain.molecule import enumerate_bindings
-
-    return any(
-        enumerate_bindings(tc.clause(), ctx, limit=1, timeout=10) for tc in tclauses
-    )
-
-
-def mol_level(item, molvar) -> bool:
-    return isinstance(item, Lit) and (
-        item.pred in MOL_PREDS or set(item.args) <= {molvar}
-    )

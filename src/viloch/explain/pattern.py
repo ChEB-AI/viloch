@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, replace
 import networkx as nx
 from chebILP.preprocessing.chebi.fg_matching import is_fg_seed_name
 
+from viloch.explain import phrases
 from viloch.logic.display_logic import (
     ELEMENTS,
     MOL_PREDS,
@@ -236,7 +237,7 @@ def unary_text(pred: str, neg: bool) -> str:
             .replace("charge_n", "negative")
         )
     else:
-        t = pred.replace("aux_", "").replace("_", " ")
+        t = phrases.humanise(pred)
     return f"not {t}" if neg else t
 
 
@@ -644,17 +645,6 @@ def _path_excludes(pat, g, u, v, dist) -> bool:
     except nx.NetworkXNoPath:
         pass
     return False
-
-
-def may_coincide(pat: Pattern) -> list[tuple[str, str]]:
-    dist = distinct_pairs(pat)
-    out = []
-    for u, v in itertools.combinations(list(pat.atoms), 2):
-        if frozenset((u, v)) not in dist:
-            if pat.atoms[u].role == "anchor" and pat.atoms[v].role == "anchor":
-                continue  # handled in the enclosing pattern
-            out.append((u, v))
-    return out
 
 
 # ── core (theta-subsumption) ───────────────────────────────────────────────

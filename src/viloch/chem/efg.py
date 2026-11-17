@@ -38,14 +38,10 @@ def is_efg(name: str) -> bool:
 def vocabulary() -> tuple[tuple[str, str], ...]:
     """``((efg_<name>, description), …)`` for every group, as chebILP's
     ``efg_fg_vocabulary`` builds it (description ``<group>: <text>``)."""
-    from chebILP.preprocessing.chebi.fg_matching import _efg_pred_name
+    from chebILP.preprocessing.chebi.fg_matching import _efg_pred_name, efg_descriptions
 
-    with open(EFG_DESCRIPTIONS_PATH, encoding="utf-8", newline="") as fh:
-        texts = {
-            r["Name"]: r["Description"]
-            for r in csv.DictReader(fh, delimiter="\t")
-            if r["Description"]
-        }
+    # chebILP's efg_fg_vocabulary reads the descriptions relative to the working directory
+    texts = efg_descriptions(EFG_DESCRIPTIONS_PATH)
     vocab, seen = [], set()
     with open(EFG_PATH, encoding="utf-8") as fh:
         reader = csv.reader(fh, delimiter="\t")
@@ -62,7 +58,9 @@ def vocabulary() -> tuple[tuple[str, str], ...]:
     return tuple(vocab)
 
 
+@functools.lru_cache(maxsize=1)
 def descriptions() -> dict[str, str]:
+    """``{efg_<name>: description}`` (shared: do not modify)."""
     return dict(vocabulary())
 
 
@@ -116,7 +114,7 @@ def fact_lines(mols, names) -> list[str]:
 
 def referenced(rule: str) -> list[str]:
     """The EFG predicates a rule text uses (in order of first use)."""
-    known = _patterns()
+    known = descriptions()
     return [n for n in dict.fromkeys(_NAME_RE.findall(rule or "")) if n in known]
 
 
@@ -145,7 +143,17 @@ def install() -> None:
         return
 
     def matcher(rows, cache_path=None):
-        return fm.get_efg_fgs(rows, efg_path=EFG_PATH)
+        """``fm.get_efg_fgs``, with the patterns compiled once instead of per call."""
+        pats = _patterns()
+        return {
+            r.Index: [
+                n
+                for n, (reject, accept) in pats.items()
+                if not any(r.mol.HasSubstructMatch(p) for p in reject)
+                and all(r.mol.HasSubstructMatch(p) for p in accept)
+            ]
+            for r in rows.itertuples()
+        }
 
     matcher._viloch = True
     fm.FG_SEED_SOURCES["efg"] = src._replace(

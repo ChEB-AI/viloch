@@ -228,7 +228,7 @@
       this.canvasEl = opts.canvas;
       this.onChangeCb = opts.onChange || null;
       this.searchAuxCb = opts.searchAux || null;  // (q, offset) → {results, total}
-      this.unfoldCb = opts.unfold || null;        // (clause, pred) → {rule, error?}
+      this.unfoldCb = opts.unfold || null;        // (clause, pred) → {model?, error?}
       this.notifyCb = opts.notify || null;        // (message) → shown to the user
       this.canvasEl.addEventListener("click", (e) => this.onCanvasClick(e));
       this.renderCanvas();
@@ -241,7 +241,7 @@
       // Element symbols → nice names.
       for (const b of this.catalog) {
         if (b.category === "Element" && b.input && b.input.type === "toggle") {
-          ELEMENTS[b.input.pred] = b.label; LABELS[b.input.pred] = b.label;
+          ELEMENTS[b.input.pred] = b.label;
         }
       }
       this.renderPalette();

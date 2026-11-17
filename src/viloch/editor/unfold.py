@@ -12,7 +12,7 @@ import functools
 import itertools
 import re
 
-from viloch.definition import Definition
+from viloch.definition import Definition, mentions
 from viloch.logic.rule_ir import (
     Agg,
     AggElem,
@@ -20,6 +20,7 @@ from viloch.logic.rule_ir import (
     Cmp,
     Lit,
     UnfoldPolicy,
+    _preds_in,
     definitions,
     ordered_vars,
     parse_program,
@@ -39,11 +40,21 @@ def _uses(defs: dict, pred: str) -> set[str]:
         if p in seen:
             continue
         seen.add(p)
-        for c in defs.get(p, []):
-            todo += re.findall(
-                r"(?<![A-Za-z0-9_])([a-z]\w*)\s*\(", " ".join(map(str, c.body))
-            )
+        todo += [q for c in defs.get(p, []) for b in c.body for q in _preds_in(b)]
     return seen
+
+
+def _lonely_guard(x, mol: str, text: str) -> bool:
+    """``has_atom(mol, X)`` with ``X`` used nowhere else in ``text``: it only says "the
+    molecule has an atom"."""
+    return (
+        isinstance(x, Lit)
+        and not x.neg
+        and x.pred == "has_atom"
+        and len(x.args) == 2
+        and x.args[0] == mol
+        and _occurrences(x.args[1], text) == 1
+    )
 
 
 def editor_rule(defn: Definition, only: str | None = None) -> str:
@@ -59,19 +70,19 @@ def editor_rule(defn: Definition, only: str | None = None) -> str:
     uses); every other defined predicate stays as written: the editor's "unfold" on one
     chip.
     """
-    return _editor_rule(defn.rule, tuple(defn.programs_key()), only)
+    return _editor_rule(defn.rule, tuple(p.source for p in defn.aux), only)
 
 
 @functools.lru_cache(maxsize=256)
-def _editor_rule(hypothesis: str, programs: tuple, only: str | None) -> str:
-    if not programs or not hypothesis:
+def _editor_rule(hypothesis: str, sources: tuple[str, ...], only: str | None) -> str:
+    if not sources or not hypothesis:
         return hypothesis
     try:
         clauses = parse_program(hypothesis)
-        defs = definitions([src for _name, src in programs])
+        defs = definitions(sources)
     except Exception:
         return hypothesis
-    support = "\n".join(src for _name, src in programs)
+    support = "\n".join(sources)
     keep = frozenset(defs) - _uses(defs, only) if only else frozenset()
     policy = UnfoldPolicy(inline_negation=False, keep=keep)
     lines = []
@@ -102,7 +113,7 @@ def _editor_rule(hypothesis: str, programs: tuple, only: str | None) -> str:
 def unfold_failure(defn: Definition, pred: str) -> str:
     """Why ``editor_rule(defn, pred)`` left ``pred`` folded, as a phrase for the user."""
     try:
-        defs = definitions(defn.programs())
+        defs = definitions(defn.aux)
         if pred not in defs:
             return "it has no definition"
         keep = frozenset(defs) - _uses(defs, pred)
@@ -144,7 +155,7 @@ def _restore_anonymous(items, bound: set[str]) -> list:
     )
 
     def unbound_var(term: str) -> bool:
-        return (term[:1].isupper() or term[:1] == "_") and term not in bound
+        return _is_var(term) and term not in bound
 
     out = []
     for b in items:
@@ -180,15 +191,7 @@ def _drop_lonely_guards(head, body: list) -> list:
     text = " ".join(map(str, [head] + body))
 
     def lonely(b) -> bool:
-        return (
-            isinstance(b, Lit)
-            and not b.neg
-            and b.pred == "has_atom"
-            and len(b.args) == 2
-            and b.args[0] == mol
-            and b.args[1][:1].isupper()
-            and _occurrences(b.args[1], text) == 1
-        )
+        return _lonely_guard(b, mol, text) and b.args[1][:1].isupper()
 
     kept = [b for b in body if not lonely(b)]
     binds_mol = any(isinstance(b, Lit) and not b.neg and mol in b.args for b in kept)
@@ -247,19 +250,7 @@ def _neg_boxes(lit, mol: str, bound: set, taken: tuple, defs: dict, policy):
         own = [v for v in ordered_vars(alt) if v not in bound and v != mol]
         text = " ".join(map(str, alt))
         # "the molecule has an atom" guards over an atom used nowhere else
-        alt = [
-            x
-            for x in alt
-            if not (
-                isinstance(x, Lit)
-                and not x.neg
-                and x.pred == "has_atom"
-                and len(x.args) == 2
-                and x.args[0] == mol
-                and x.args[1] in own
-                and _occurrences(x.args[1], text) == 1
-            )
-        ]
+        alt = [x for x in alt if not (_lonely_guard(x, mol, text) and x.args[1] in own)]
         own = [v for v in ordered_vars(alt) if v not in bound and v != mol]
         if not alt:
             return None
@@ -297,6 +288,6 @@ def unfold_pred(defn: Definition, pred: str) -> tuple[str, str | None]:
     """``(rule, error)``: the main rule with only ``pred`` unfolded, and why it stayed
     folded (``None`` if it was unfolded)."""
     out = editor_rule(defn, pred)
-    if not re.search(rf"(?<![A-Za-z0-9_]){re.escape(pred)}\s*\(", out):
+    if not mentions(out, pred):
         return out, None
     return out, f"Could not unfold {pred}: {unfold_failure(defn, pred)}."

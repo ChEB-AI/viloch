@@ -3,12 +3,11 @@ editor model accept exactly the same molecules."""
 
 from __future__ import annotations
 
-import csv
 import functools
 
 import clingo
 import pytest
-from helpers import EDITOR_FIXTURES, FIXTURES, editor_cases
+from helpers import EDITOR_FIXTURES, editor_cases, molecules
 
 from viloch.editor.asp import from_asp, to_asp
 
@@ -17,12 +16,6 @@ SUPPORT = """
 aux_atom_element(A, E) :- has_atom(M, A), c(A), has_atom(M, E), c(E), bSINGLE(A, E).
 aux_has_carboxy(M) :- has_atom(M, C), c(C), has_atom(M, O), o(O), bDOUBLE(C, O).
 """
-
-
-@functools.cache
-def molecules() -> list[tuple[str, str]]:
-    with open(FIXTURES / "molecules.tsv", encoding="utf-8") as fh:
-        return [(r["name"], r["smiles"]) for r in csv.DictReader(fh, delimiter="\t")]
 
 
 @functools.cache
@@ -46,6 +39,6 @@ def accepts(rule: str, smiles: str) -> bool:
 def test_round_trip_keeps_meaning(name):
     rule = (EDITOR_FIXTURES / f"{name}.lp").read_text(encoding="utf-8")
     round_trip = to_asp(from_asp(rule))
-    before = {n for n, s in molecules() if accepts(rule, s)}
-    after = {n for n, s in molecules() if accepts(round_trip, s)}
+    before = {n for n, s in molecules().items() if accepts(rule, s)}
+    after = {n for n, s in molecules().items() if accepts(round_trip, s)}
     assert before == after

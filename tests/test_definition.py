@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from helpers import FIXTURES
+from helpers import DEFS, LIBRARY
 
 from viloch.definition import AuxProgram, Definition, split_clauses
-
-DEFS = FIXTURES / "definitions"
-LIBRARY = FIXTURES / "library"
 
 
 def test_parse_splits_main_rule_and_aux():

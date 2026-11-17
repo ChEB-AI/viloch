@@ -6,16 +6,12 @@ import csv
 import re
 
 import pytest
-from helpers import FIXTURES
+from helpers import DEFS, LIBRARY, molecules
 
 from viloch import Definition, explain_molecule, explain_rule
 from viloch.explain.text import MAX_WORDS
 
-DEFS = FIXTURES / "definitions"
-LIBRARY = str(FIXTURES / "library")
-
-with open(FIXTURES / "molecules.tsv", encoding="utf-8") as fh:
-    SMILES = {r["name"]: r["smiles"] for r in csv.DictReader(fh, delimiter="\t")}
+SMILES = molecules()
 with open(DEFS / "expected.tsv", encoding="utf-8") as fh:
     EXPECTED = [
         (r["definition"], r["molecule"], r["fires"] == "true")

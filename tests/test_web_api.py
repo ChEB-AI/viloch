@@ -1,21 +1,16 @@
 from __future__ import annotations
 
 import pytest
-from helpers import FIXTURES
+from helpers import LIBRARY
+from helpers import definition_text as definition
 from starlette.testclient import TestClient
 
 from viloch.web.app import create_app
 
-DEFS = FIXTURES / "definitions"
-
 
 @pytest.fixture(scope="module")
 def client():
-    return TestClient(create_app(library_dir=str(FIXTURES / "library")))
-
-
-def definition(name: str) -> str:
-    return (DEFS / f"{name}.lp").read_text(encoding="utf-8")
+    return TestClient(create_app(library_dir=LIBRARY))
 
 
 def test_index_and_assets(client):

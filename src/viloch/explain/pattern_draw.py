@@ -107,13 +107,6 @@ def gonane_neighbours(k: int) -> list[int]:
 # ── labels and notes ───────────────────────────────────────────────────────
 
 
-def _charge_sup(q: int) -> str:
-    if q == 0:
-        return ""
-    n = "" if abs(q) == 1 else str(abs(q))
-    return f"{n}{'+' if q > 0 else '-'}"
-
-
 def element_symbol(spec: AtomSpec) -> tuple[str, int]:
     els = spec.eff_elements()
     if els is None or len(els) != 1:

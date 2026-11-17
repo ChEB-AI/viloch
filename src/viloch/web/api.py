@@ -20,13 +20,14 @@ from __future__ import annotations
 
 import re
 import traceback
+from dataclasses import replace
 
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from viloch.definition import AuxProgram, Definition
+from viloch.definition import DEFAULT_TARGET, AuxProgram, Definition
 from viloch.editor import asp, catalog
 from viloch.editor.unfold import editor_rule, unfold_pred
 
@@ -72,7 +73,7 @@ def aux_programs(items) -> tuple[AuxProgram, ...]:
         if not _PRED_RE.fullmatch(p["name"]):
             raise BadRequest("Bad auxiliary predicate name.")
         source = check_rule_text(p.get("source"), "auxiliary program")
-        out.append(AuxProgram(p["name"], source, str(p.get("description") or "")))
+        out.append(AuxProgram.from_dict({**p, "source": source}))
     return tuple(out)
 
 
@@ -98,7 +99,9 @@ def _compile(model: dict, target: str) -> str:
         raise BadRequest(f"Malformed editor model ({type(e).__name__}: {e}).") from None
 
 
-def make_routes(library_dir: str | None = None, target: str = "concept") -> list[Route]:
+def make_routes(
+    library_dir: str | None = None, target: str = DEFAULT_TARGET
+) -> list[Route]:
     """The editor API routes. ``library_dir``: the aux rule library that resolves
     ``aux_*`` predicates a definition uses but does not define (optional);
     ``target``: the head predicate of edited rules unless a request names one."""
@@ -106,7 +109,7 @@ def make_routes(library_dir: str | None = None, target: str = "concept") -> list
     def definition_of(body: dict) -> Definition:
         text = check_rule_text(body.get("definition"), "definition")
         defn = Definition.parse(text, body.get("target") and _target(body, target))
-        return defn if defn.rule else Definition("", defn.aux, _target(body, target))
+        return defn if defn.target else replace(defn, target=target)
 
     def parse(body: dict) -> dict:
         defn = definition_of(body)

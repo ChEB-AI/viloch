@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+import csv
+import functools
 from pathlib import Path
 
 FIXTURES = Path(__file__).parent / "fixtures"
 EDITOR_FIXTURES = FIXTURES / "editor"
+DEFS = FIXTURES / "definitions"
+LIBRARY = str(FIXTURES / "library")
+
+
+@functools.cache
+def molecules() -> dict[str, str]:
+    """``{name: SMILES}`` of ``fixtures/molecules.tsv``."""
+    with open(FIXTURES / "molecules.tsv", encoding="utf-8") as fh:
+        return {r["name"]: r["smiles"] for r in csv.DictReader(fh, delimiter="\t")}
+
+
+def definition_text(name: str) -> str:
+    return (DEFS / f"{name}.lp").read_text(encoding="utf-8")
 
 
 def editor_cases() -> list[str]:

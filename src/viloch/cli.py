@@ -19,6 +19,8 @@ import os
 import re
 import sys
 
+from viloch.definition import DEFAULT_TARGET
+
 
 def _add_definition_args(p: argparse.ArgumentParser) -> None:
     p.add_argument(
@@ -81,7 +83,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--library", help="aux rule library directory")
-    p.add_argument("--target", default="concept", help="head predicate of edited rules")
+    p.add_argument(
+        "--target", default=DEFAULT_TARGET, help="head predicate of edited rules"
+    )
     return parser
 
 
@@ -93,9 +97,9 @@ def _read(path: str) -> str:
 
 
 def _definition(args):
-    from viloch.definition import Definition
+    from viloch.api import as_definition
 
-    return Definition.parse(_read(args.definition), args.target)
+    return as_definition(_read(args.definition), args.target)
 
 
 def _names(args) -> dict:
@@ -196,8 +200,8 @@ def cmd_explain_molecule(args) -> int:
 
 
 def cmd_convert(args) -> int:
-    from viloch.definition import Definition
-    from viloch.editor.asp import DEFAULT_TARGET, from_asp, to_asp
+    from viloch.definition import AuxProgram, Definition
+    from viloch.editor.asp import from_asp, to_asp
 
     text = _read(args.input)
     if args.to == "model":
@@ -206,23 +210,17 @@ def cmd_convert(args) -> int:
         out = {
             "target": target,
             "model": from_asp(defn.rule, target),
-            "aux": [p.as_dict() for p in defn.aux],
+            "aux": defn.programs(),
         }
         print(json.dumps(out, indent=2, ensure_ascii=False))
     else:
         data = json.loads(text)
         model = data.get("model", data)
         target = args.target or data.get("target") or DEFAULT_TARGET
-        aux = tuple(_aux(p) for p in data.get("aux", []))
-        defn = Definition(to_asp(model, target), aux, target)
+        aux = tuple(AuxProgram.from_dict(p) for p in data.get("aux", []))
+        defn = Definition(to_asp(model, target), aux, target).prune()
         print(defn.to_text(), end="")
     return 0
-
-
-def _aux(p: dict):
-    from viloch.definition import AuxProgram
-
-    return AuxProgram(p["name"], p["source"], p.get("description", ""))
 
 
 def cmd_serve(args) -> int:

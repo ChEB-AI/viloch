@@ -25,11 +25,11 @@ from __future__ import annotations
 
 import itertools
 import math
+import re
 
-from viloch.definition import split_clauses
+from viloch.definition import DEFAULT_TARGET, split_clauses
 from viloch.logic.rule_ir import MIRROR, Agg, Cmp, Lit, parse_program
 
-DEFAULT_TARGET = "concept"
 NEQ = "!="
 LT = "<"
 COUNT_OPS = ("=", ">=", "<=", ">", "<", "between")
@@ -152,8 +152,6 @@ def compile_clause(cl: dict, target: str = DEFAULT_TARGET) -> str | None:
 
 
 def _mentions_v0(lit: str) -> bool:
-    import re
-
     return re.search(r"\bV0\b", lit) is not None
 
 
@@ -165,8 +163,6 @@ def _int(v) -> int:
         return v
     if isinstance(v, float):
         return 0 if math.isnan(v) else int(v)
-    import re
-
     m = re.match(r"\s*([+-]?\d+)", str(v or ""))
     return int(m.group(1)) if m else 0
 

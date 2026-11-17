@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import re
 
-from rdkit import Chem
-
 from viloch.explain.molecule import BOND_PREDS, ELEMENTS
 from viloch.logic.rule_ir import agg_bounds
 
@@ -33,12 +31,6 @@ BOND_SYM = {
     "bSTEREOE": "=",
     "bSTEREOZ": "=",
     "bSTEREOANY": "=",
-}
-RD_BOND = {
-    Chem.BondType.SINGLE: "–",
-    Chem.BondType.DOUBLE: "=",
-    Chem.BondType.TRIPLE: "≡",
-    Chem.BondType.AROMATIC: ":",
 }
 ELEMENT_NAME = {
     "c": "carbon",
@@ -237,18 +229,6 @@ def as_clause(desc: str) -> str:
     if len(d) > 1 and d[0].isupper() and not d[1].isupper():
         d = d[0].lower() + d[1:]
     return d
-
-
-def mol_phrase(pred: str, neg: bool, net_charge: int) -> str:
-    q = f"{net_charge:+d}".replace("-", "−") if net_charge else "0"
-    base = {
-        "aliphatic": "has no aromatic atom (aliphatic)",
-        "aromatic": "has at least one aromatic atom",
-        "net_charge_neutral": f"has net charge 0 (here {q})",
-        "net_charge_positive": f"has a positive net charge (here {q})",
-        "net_charge_negative": f"has a negative net charge (here {q})",
-    }.get(pred, f"satisfies {humanise(pred)}")
-    return f"not: {base}" if neg else base
 
 
 _BOUND_WORDS = {

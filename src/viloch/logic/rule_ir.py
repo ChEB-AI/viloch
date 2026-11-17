@@ -491,36 +491,6 @@ def unfold(
     return UnfoldResult(out, inlined, kept)
 
 
-def simplify(clause: Clause) -> Clause:
-    """Drop duplicate items and ``has_atom(M,X)`` guards whose X is used nowhere else.
-
-    Every molecule has atoms, so such a guard is always true; it only keeps the clause safe.
-    For display only: the result may be unsafe ASP (use to_asp on unsimplified clauses).
-    """
-    seen, body = set(), []
-    for b in clause.body:
-        if str(b) not in seen:
-            seen.add(str(b))
-            body.append(b)
-    mol = clause.head.args[0] if clause.head.args else None
-    counts: dict[str, int] = {}
-    for b in [clause.head] + body:
-        for v in _VAR_RE.findall(str(b)):
-            counts[v] = counts.get(v, 0) + 1
-
-    def lonely(b):
-        return (
-            isinstance(b, Lit)
-            and b.pred == "has_atom"
-            and not b.neg
-            and b.args[0] == mol
-            and (b.args[1] == "_" or counts.get(b.args[1], 0) == 1)
-        )
-
-    pruned = [b for b in body if not lonely(b)]
-    return Clause(clause.head, pruned if pruned else body)
-
-
 def to_asp(clauses: list[Clause]) -> str:
     """Executable ASP for unfolded clauses; each NegGroup becomes a helper predicate."""
     lines, counter = [], itertools.count()

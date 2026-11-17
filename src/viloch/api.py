@@ -9,12 +9,13 @@ import pickle
 from viloch.definition import Definition
 
 
-def as_definition(definition: Definition | str) -> Definition:
-    return (
-        definition
-        if isinstance(definition, Definition)
-        else Definition.parse(definition)
-    )
+def as_definition(
+    definition: Definition | str, target: str | None = None
+) -> Definition:
+    """``definition``, parsed if it is text (:meth:`Definition.parse`)."""
+    if isinstance(definition, Definition):
+        return definition
+    return Definition.parse(definition, target)
 
 
 def prepare(

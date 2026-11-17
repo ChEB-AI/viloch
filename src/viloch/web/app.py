@@ -9,18 +9,15 @@ from starlette.responses import FileResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from viloch.definition import DEFAULT_TARGET
 from viloch.web.api import make_routes
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 
-def static_files() -> StaticFiles:
-    """The editor's assets (``blocks.js``, ``blocks.css``, the standalone page), for
-    mounting in another app: ``Mount("/viloch", app=static_files())``."""
-    return StaticFiles(directory=STATIC_DIR)
-
-
-def create_app(library_dir: str | None = None, target: str = "concept") -> Starlette:
+def create_app(
+    library_dir: str | None = None, target: str = DEFAULT_TARGET
+) -> Starlette:
     async def index(request):
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
@@ -28,6 +25,6 @@ def create_app(library_dir: str | None = None, target: str = "concept") -> Starl
         routes=[
             Route("/", index),
             Mount("/api", routes=make_routes(library_dir=library_dir, target=target)),
-            Mount("/static", app=static_files()),
+            Mount("/static", app=StaticFiles(directory=STATIC_DIR)),
         ]
     )

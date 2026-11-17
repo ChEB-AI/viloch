@@ -20,7 +20,6 @@ from viloch.logic.rule_ir import (
     Agg,
     Clause,
     Lit,
-    NegGroup,
     ordered_vars,
     substitute,
     to_asp,
@@ -327,33 +326,3 @@ def aggregate_value(agg: Agg, rows: list[list[tuple]]) -> float | None:
     if not nums:
         return 0 if agg.func.startswith("sum") else None
     return {"sum": sum, "sum+": sum, "min": min, "max": max}[agg.func](nums)
-
-
-def neg_group_holds(ng: NegGroup, binding: dict, ctx: MolContext) -> bool:
-    """True iff no alternative of the NegGroup holds under ``binding``."""
-    for alt in ng.alternatives:
-        body = [substitute(x, binding) for x in alt]
-        if enumerate_bindings(Clause(Lit("_t", ()), body), ctx, limit=1, timeout=5):
-            return False
-    return True
-
-
-def partial_neg_match(ng: NegGroup, binding: dict, ctx: MolContext):
-    """For each alternative, the atoms matching its positive part (where the absence check looked)."""
-    out = []
-    for alt in ng.alternatives:
-        body = [substitute(x, binding) for x in alt]
-        pos = [x for x in body if isinstance(x, Lit) and not x.neg]
-        bs = (
-            enumerate_bindings(Clause(Lit("_t", ()), pos), ctx, limit=200, timeout=5)
-            if pos
-            else []
-        )
-        b = best_binding(bs, ctx, prefer_injective=True) if bs else None
-        atoms = set()
-        if b is not None:
-            for x in pos:
-                g = substitute(x, b)
-                atoms.update(atom_index(a) for a in g.args if is_atom_term(a))
-        out.append(atoms)
-    return out

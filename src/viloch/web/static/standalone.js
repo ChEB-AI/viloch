@@ -6,7 +6,7 @@
 
   // What the blocks currently show: the target predicate and the auxiliary programs
   // that came with the parsed text (compile writes back the ones still used).
-  const state = { target: null, aux: [], syncing: false };
+  const state = { target: null, aux: [], blocks: null, syncing: false };
 
   async function api(path, body) {
     const res = await fetch("api/" + path, body === undefined ? {} : {
@@ -36,7 +36,12 @@
       state.target = data.target;
       state.aux = data.aux;
       state.syncing = true;
-      Blocks.setCatalog(catalog, data.blocks);
+      // Rebuilding the palette resets its search; only do it when the blocks change.
+      const blocks = JSON.stringify(data.blocks);
+      if (blocks !== state.blocks) {
+        state.blocks = blocks;
+        Blocks.setCatalog(catalog, data.blocks);
+      }
       Blocks.load(data.model);
       state.syncing = false;
       const raw = data.model.clauses.filter((c) => c.rawClause != null).length;

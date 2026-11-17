@@ -3,12 +3,9 @@ from __future__ import annotations
 import json
 
 import pytest
-from helpers import FIXTURES
+from helpers import DEFS, LIBRARY
 
 from viloch.cli import main
-
-DEFS = FIXTURES / "definitions"
-LIBRARY = str(FIXTURES / "library")
 
 
 def test_convert_round_trip(capsys, tmp_path):

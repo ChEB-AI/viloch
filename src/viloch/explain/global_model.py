@@ -319,7 +319,7 @@ def clause_model(clause: Clause, elemsets, desc) -> ClauseModel:
         m = agg_model(agg, mol, elemsets, desc)
         (cm.minis if isinstance(m, Mini) else cm.chips).append(m)
     for marker, pred, args, d, neg in pat.opaque:
-        name = pred.replace("aux_", "").replace("_", " ")
+        name = phrases.humanise(pred)
         cm.chips.append(Chip(f"†{marker} {'not ' if neg else ''}{d or name}", "aux"))
     for o in pat.other:
         cm.chips.append(Chip(o, "plain"))
@@ -431,10 +431,7 @@ def group_model(g, pat: Pattern, num: Numberer, mol, elemsets, desc) -> GroupMod
         for agg in sub.aggs:
             chips.append(agg_model(agg, mol, elemsets, desc).text)
         chips += list(sub.other)
-        chips += [
-            d or pred.replace("aux_", "").replace("_", " ")
-            for _, pred, _, d, _ in sub.opaque
-        ]
+        chips += [d or phrases.humanise(pred) for _, pred, _, d, _ in sub.opaque]
         if sub.negs or sub.ors:
             chips.append("further nested conditions")
         local = [v for v in disp.atoms if v not in anchors]

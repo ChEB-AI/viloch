@@ -174,16 +174,6 @@ def box(img: Image.Image, bg, line=None, pad=(8, 6), radius=8, width=1) -> Image
     return out
 
 
-def on_bg(img: Image.Image, bg) -> Image.Image:
-    """Recolour a white-background image's white pixels to ``bg`` (for text on tinted panels)."""
-    if bg == WHITE:
-        return img
-    out = Image.new("RGB", img.size, bg)
-    mask = img.convert("L").point(lambda x: 0 if x > 250 else 255)
-    out.paste(img, (0, 0), mask)
-    return out
-
-
 def vstack(imgs, gap=8, align="left", bg=WHITE) -> Image.Image:
     imgs = [i for i in imgs if i is not None]
     if not imgs:

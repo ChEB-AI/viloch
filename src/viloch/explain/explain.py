@@ -9,6 +9,7 @@ Both depend only on the rule, its aux definitions and the class hierarchy, never
 
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 
@@ -26,7 +27,6 @@ from viloch.explain.pattern_draw import crop_to_content
 from viloch.explain.style import MAX_W, WHITE, compose, fit, header, legend
 from viloch.explain.text import global_text, local_text, plural
 
-_AUX_RE = re.compile(r"\b(aux_[A-Za-z0-9_]+)\s*\(")
 _SEED_RE = re.compile(r"\b((?:chembl_fg|efga|efg)_[A-Za-z0-9_]+)\s*\(")
 _HEAD_RE = re.compile(r"^\s*([a-z][A-Za-z0-9_]*)\s*\(", re.M)
 
@@ -57,36 +57,23 @@ def read_molecule(molecule: str | Chem.Mol) -> Chem.Mol:
     return mol
 
 
-def load_aux_programs(rule: str, library_dir: str | None) -> list[dict]:
-    """``{"name", "description", "source"}`` for the aux predicates in ``rule`` and those they build on."""
-    names = sorted(set(_AUX_RE.findall(rule)))
-    if not names:
-        return []
-    if library_dir is None:
-        raise ValueError(
-            f"The rule uses {', '.join(names)}; pass the aux library directory that defines them."
-        )
-    from chebILP.predicate_generation.auxiliary_rules import (
-        aux_rule_path,
-        parse_rule_program,
-        resolve_rule_dependencies,
-    )
-
-    direct = []
-    for name in names:
-        with open(aux_rule_path(name, library_dir), encoding="utf-8") as f:
-            direct.append(parse_rule_program(f.read(), source_file=name))
-    deps = resolve_rule_dependencies(direct, library_dir)
-    return [
-        {"name": p.name, "description": p.description, "source": p.source}
-        for p in direct + deps
-    ]
-
-
 def _seed_names(rule: str, aux_programs: list[dict]) -> set[str]:
     return set(
         _SEED_RE.findall(rule + "\n" + "\n".join(p["source"] for p in aux_programs))
     )
+
+
+@functools.lru_cache(maxsize=8)
+def _vocabulary(src) -> dict[str, str]:
+    """``{predicate: description}`` of a seed source (building some, e.g. ChEMBL's
+    FilterCatalog, takes a while)."""
+    try:
+        return {
+            name if name.startswith(src.prefix) else src.prefix + name: desc
+            for name, desc in src.vocabulary()
+        }
+    except Exception:
+        return {}
 
 
 def _seed_descriptions(names: set[str]) -> dict:
@@ -97,16 +84,9 @@ def _seed_descriptions(names: set[str]) -> dict:
 
     out = {}
     for src in FG_SEED_SOURCES.values():
-        want = {n for n in names if n.startswith(src.prefix)}
-        if not want:
-            continue
-        try:
-            for name, desc in src.vocabulary():
-                full = name if name.startswith(src.prefix) else src.prefix + name
-                if full in want:
-                    out[full] = desc
-        except Exception:
-            pass
+        if any(n.startswith(src.prefix) for n in names):
+            vocab = _vocabulary(src)
+            out.update({n: vocab[n] for n in names if n in vocab})
     return out
 
 
@@ -150,14 +130,8 @@ def class_info(
     return cid, node.get("name"), parents
 
 
-def _rule_context(
-    rule: str, aux_library_dir, aux_programs
-) -> tuple[RuleContext, set[str]]:
-    progs = (
-        aux_programs
-        if aux_programs is not None
-        else load_aux_programs(rule, aux_library_dir)
-    )
+def _rule_context(rule: str, aux_programs) -> tuple[RuleContext, set[str]]:
+    progs = list(aux_programs or [])
     seeds = _seed_names(rule, progs)
     rc = RuleContext.build(rule, progs)
     rc.aux_desc.update(
@@ -172,16 +146,15 @@ def _rule_context(
 def explain_rule(
     rule: str,
     chebi_graph=None,
-    aux_library_dir: str | None = None,
     aux_programs: list[dict] | None = None,
     class_name: str | None = None,
 ) -> Explanation:
     """Picture and short text describing what ``rule`` asks of a molecule.
 
-    ``aux_programs`` (``{"name", "description", "source"}``) overrides loading them from
-    ``aux_library_dir``.
+    ``aux_programs``: ``{"name", "description", "source"}`` of every aux predicate the
+    rule uses (:meth:`viloch.Definition.programs` after ``resolve``).
     """
-    rc, _ = _rule_context(rule, aux_library_dir, aux_programs)
+    rc, _ = _rule_context(rule, aux_programs)
     cid, name, parents = class_info(rule, chebi_graph, class_name)
     fm = figure_model(rc.clauses, rc.defs, rc.aux_desc)
     text = global_text(fm, name, parents)
@@ -195,7 +168,6 @@ def explain_molecule(
     molecule: str | Chem.Mol,
     rule: str,
     chebi_graph=None,
-    aux_library_dir: str | None = None,
     aux_programs: list[dict] | None = None,
     class_name: str | None = None,
     name: str | None = None,
@@ -205,7 +177,7 @@ def explain_molecule(
     ``molecule`` is a SMILES, InChI, molblock or RDKit molecule; ``name`` is used in the title.
     """
     mol = read_molecule(molecule)
-    rc, seeds = _rule_context(rule, aux_library_dir, aux_programs)
+    rc, seeds = _rule_context(rule, aux_programs)
     rc.programs = rc.programs + _seed_facts(seeds, mol)
     loc = analyse(mol, rc)
     cid, cname, parents = class_info(rule, chebi_graph, class_name)
