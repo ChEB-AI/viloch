@@ -6,6 +6,7 @@ from __future__ import annotations
 import itertools
 from dataclasses import dataclass, field
 
+from viloch.explain import phrases
 from viloch.explain.pattern import (
     BOND_PREDS,
     Pattern,
@@ -102,31 +103,8 @@ class FigureModel:
 
 
 def _quantifier(agg: Agg) -> str | None:
-    def word(op, n, side):
-        if side == "l":  # n op #agg
-            return {
-                "=": f"exactly {n}",
-                "<=": f"at least {n}",
-                "<": f"more than {n}",
-                ">=": f"at most {n}",
-                ">": f"fewer than {n}",
-                "!=": f"not exactly {n}",
-            }[op]
-        return {
-            "=": f"exactly {n}",
-            ">=": f"at least {n}",
-            ">": f"more than {n}",
-            "<=": f"at most {n}",
-            "<": f"fewer than {n}",
-            "!=": f"not exactly {n}",
-        }[op]
-
-    parts = []
-    if agg.lguard:
-        parts.append(word(agg.lguard[0], agg.lguard[1], "l"))
-    if agg.rguard:
-        parts.append(word(agg.rguard[0], agg.rguard[1], "r"))
-    return " and ".join(parts) if parts else None
+    """ "at least 2", "at most 1", "no", ...: how many the count asks for."""
+    return phrases.guard_phrase(agg) or None
 
 
 def _plural(n: str, noun: str) -> str:

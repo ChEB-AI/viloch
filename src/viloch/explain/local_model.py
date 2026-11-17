@@ -472,7 +472,13 @@ def _plural_verb(phrase: str, n: int) -> str:
     if verb == "is" and m:
         return f"are {m.group(1)} atoms"
     return (
-        {"is": "are", "has": "have", "carries": "carry", "does": "do"}.get(verb, verb)
+        {
+            "is": "are",
+            "has": "have",
+            "carries": "carry",
+            "does": "do",
+            "meets": "meet",
+        }.get(verb, verb)
         + " "
         + rest
     )
@@ -612,18 +618,21 @@ class Letters:
 
 
 def wrong_value(ctx: MolContext, idx: int, pred: str, aux_desc: dict) -> str:
-    """'is at steroid position 8, not 6'-style phrase for an atom that fails ``pred``."""
+    """'is at steroid position 8, but position 6 is needed'-style phrase for an atom
+    that fails ``pred``; completes "atom a ..."."""
     preds = ctx.atom_preds(idx)
     fam = family(pred)
     atom = ctx.mol.GetAtomWithIdx(idx)
     el = phrases.element_of(pred)
     if el:
-        return f"is {atom.GetSymbol()}, not {phrases.sym(el)}"
+        have = phrases.ELEMENT_NAME.get(atom.GetSymbol().lower(), atom.GetSymbol())
+        want = phrases.ELEMENT_NAME.get(el, phrases.sym(el))
+        return f"is {have}, but {want} is needed"
     if fam == "steroid":
         ks = sorted(int(p.split("_")[1]) for p in preds if family(p) == "steroid")
         want = pred.split("_")[1]
         if ks:
-            return f"is at steroid position {', '.join(map(str, ks))}, not {want}"
+            return f"is at steroid position {', '.join(map(str, ks))}, but position {want} is needed"
         return f"is not part of the steroid core (position {want} is needed)"
     if fam == "ring" or pred == "in_ring":
         ks = sorted(
@@ -634,11 +643,11 @@ def wrong_value(ctx: MolContext, idx: int, pred: str, aux_desc: dict) -> str:
             return "is not in a ring" + (
                 f" (a {want}-membered ring is needed)" if want else ""
             )
-        return f"is in a ring of size {', '.join(map(str, ks))}, not {want}"
+        return f"is in a ring of size {', '.join(map(str, ks))}, but a {want}-membered ring is needed"
     if fam == "cip":
         cs = [p[-1] for p in preds if family(p) == "cip"]
         return (
-            f"is ({cs[0]})-configured, not ({pred[-1]})"
+            f"is ({cs[0]})-configured, but ({pred[-1]}) is needed"
             if cs
             else f"has no (R)/(S) label; ({pred[-1]}) is needed"
         )
@@ -649,7 +658,7 @@ def wrong_value(ctx: MolContext, idx: int, pred: str, aux_desc: dict) -> str:
         want = phrases.exact_h(pred)
         if not want:
             return f"carries {phrases.num(n)} H but must carry none"
-        return f"carries {phrases.num(n) if n else 'no'} H, not {phrases.num(want)}"
+        return f"carries {phrases.num(n) if n else 'no'} H, but exactly {phrases.num(want)} {'is' if want == 1 else 'are'} needed"
     if pred.startswith("has_at_least_"):
         n = next(
             (phrases.exact_h(p) for p in preds if phrases.exact_h(p) is not None), 0
@@ -672,7 +681,7 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
     outer_desc = aux_desc.get(tag[0]) if tag else None
 
     def who(v):
-        return name(atom_index(b.get(v, "")))
+        return f"atom {name(atom_index(b.get(v, '')))}"
 
     if isinstance(item, Lit) and (item.pred in MOL_PREDS or set(item.args) <= {molvar}):
         net = Chem.GetFormalCharge(ctx.mol)
@@ -681,12 +690,19 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
             want = {"neutral": "zero", "positive": "positive", "negative": "negative"}[
                 item.pred.split("_")[-1]
             ]
-            return f"its net charge is {q}, not {want}"
-        if item.pred == "aliphatic":
-            return "it has aromatic atoms"
-        if item.pred == "aromatic":
-            return "it has no aromatic atom"
+            if item.neg:
+                return f"its net charge is {q}, but must not be {want}"
+            return f"its net charge is {q}, but must be {want}"
+        aromatic = (item.pred == "aromatic") != item.neg
+        if item.pred in ("aromatic", "aliphatic"):
+            return "it has no aromatic atom" if aromatic else "it has aromatic atoms"
         d = aux_desc.get(item.pred)
+        if item.neg:
+            return (
+                f"it meets the condition “{phrases.as_clause(d)}”, but must not"
+                if d
+                else f"it has {phrases.humanise(item.pred)}, but must not"
+            )
         return (
             f"it does not meet the condition “{phrases.as_clause(d)}”"
             if d
@@ -703,35 +719,38 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
             if float(val).is_integer()
             else val
         )
-        guard = phrases.guard_phrase(item)
-        return f"it has {v} {phrases.plural(noun, v)}, but {guard} {'is' if guard.endswith(' 1') else 'are'} needed"
+        guard = phrases.guard_phrase(item, none="none")
+        return f"it has {'no' if v == 0 else v} {phrases.plural(noun, v)}, but must have {guard}"
     if isinstance(item, NegGroup):
         alts, wheres = neg_alternatives(item, b, name, molvar)
         where = f", where {'; '.join(wheres)}" if wheres else ""
         d = (aux_desc.get(item.source_pred) if item.source_pred else None) or outer_desc
         if d:
             return f"it does not meet the condition “{phrases.as_clause(d)}”"
+        alts = [_single_atom(a) for a in alts]
         return f"it contains {' or '.join(alts)}{where}, which must be absent"
     if isinstance(item, Cmp):
         return (
-            f"{who(item.left)} and {who(item.right)} would have to be different atoms"
+            f"atoms {name(atom_index(b.get(item.left, '')))} and "
+            f"{name(atom_index(b.get(item.right, '')))} would have to be different"
         )
     if isinstance(item, Lit) and len(item.args) == 1:
         v = item.args[0]
         if v not in nm.anchored:
             el = phrases.element_of(item.pred)
             if el and not item.neg:
-                return (
-                    "there is no hydrogen atom drawn in the structure"
-                    if el == "h"
-                    else f"there is no {phrases.ELEMENT_NAME.get(el, phrases.sym(el))} atom where it is needed"
-                )
+                el_name = phrases.ELEMENT_NAME.get(el, phrases.sym(el))
+                if el == "h":
+                    return "there is no hydrogen atom drawn in the structure"
+                if not any(a.GetSymbol().lower() == el for a in ctx.mol.GetAtoms()):
+                    return f"it has no {el_name} atom"
+                return f"no {el_name} atom fits the rest of the pattern"
             ph, _ = phrases.unary_phrase(item.pred, item.neg, aux_desc)
             return f"no atom {ph}"
         idx = atom_index(b[v])
         if item.neg:
             ph, _ = phrases.unary_phrase(item.pred, False, aux_desc)
-            return f"{who(v)} {ph}, but must not be"
+            return f"{who(v)} {ph}, but must not"
         return f"{who(v)} {wrong_value(ctx, idx, item.pred, aux_desc)}"
     if isinstance(item, Lit) and item.pred in BOND_PREDS and len(item.args) == 2:
         u, v = item.args
@@ -745,8 +764,8 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
             iu, iv = atom_index(b[u]), atom_index(b[v])
             actual = ctx.bond_pred(iu, iv)
             if actual and word:
-                return f"the {who(u)}–{who(v)} bond is {phrases.bond_word(actual)}, not {word}"
-            return f"{who(u)} and {who(v)} are not bonded"
+                return f"the bond between atoms {name(iu)} and {name(iv)} is {phrases.bond_word(actual)}, but must be {word}"
+            return f"atoms {name(iu)} and {name(iv)} are not bonded"
         anchored = u if u in nm.anchored else (v if v in nm.anchored else None)
         if anchored:
             other = v if anchored == u else u
@@ -778,6 +797,31 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
     return "one more condition fails"
 
 
+def _single_atom(formula: str) -> str:
+    """``"N"`` -> ``"a nitrogen atom"``; longer formulas stay as they are."""
+    if not re.fullmatch(r"[A-Z][a-z]?", formula):
+        return formula
+    el = phrases.ELEMENT_NAME.get(formula.lower())
+    return f"{phrases.article(el)} {el} atom" if el else formula
+
+
+def _drop_implied(missing: list[str]) -> list[int]:
+    """Positions of the reasons worth stating: no duplicates, and none that "it has no
+    oxygen atom" already implies (e.g. "atom b is carbon, but oxygen is needed")."""
+    absent = [m.split()[3] for m in missing if re.fullmatch(r"it has no \w+ atom", m)]
+    seen, keep = set(), []
+    for k, m in enumerate(missing):
+        if m in seen:
+            continue
+        if not m.startswith("it has no ") and any(
+            re.search(rf"\b{a}\b", m) for a in absent
+        ):
+            continue
+        seen.add(m)
+        keep.append(k)
+    return keep
+
+
 def explain_miss(loc: Local, rc: RuleContext):
     ctx = loc.ctx
     nms = [near_miss(tc, ctx) for tc in rc.tclauses]
@@ -786,7 +830,13 @@ def explain_miss(loc: Local, rc: RuleContext):
     nm = min(nms, key=rank_key)
     tc, b = nm.tclause, nm.binding
     name = Letters(ctx)
-    loc.missing = [missing_phrase(nm, i, ctx, name, rc.aux_desc) for i in nm.unsat]
+    # Pick the reasons with scratch letters, so only atoms the text names get a letter.
+    scratch, unsat = Letters(ctx), list(nm.unsat)
+    draft = [missing_phrase(nm, i, ctx, scratch, rc.aux_desc) for i in unsat]
+    loc.missing = [
+        missing_phrase(nm, unsat[k], ctx, name, rc.aux_desc)
+        for k in _drop_implied(draft)
+    ]
     notes: dict[int, list[str]] = {}
     agg_legend: list = []
     struct_cols: set = set()
@@ -814,7 +864,7 @@ def explain_miss(loc: Local, rc: RuleContext):
         agg_legend.append(
             (
                 col,
-                f"Counted: {v} {phrases.plural(noun, v)} ({phrases.guard_phrase(item)} needed).",
+                f"Counted: {v} {phrases.plural(noun, v)} (needed: {phrases.guard_phrase(item, none='none')}).",
             )
         )
         for rs in rows:

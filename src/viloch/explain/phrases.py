@@ -178,7 +178,10 @@ def unary_phrase(
     desc = aux_desc.get(pred)
     name = humanise(pred)
     if desc:
-        return (f"is not: {desc}", f"not {name}") if neg else (f"is: {desc}", name)
+        cond = f"the condition “{as_clause(desc)}”"
+        return (
+            (f"does not meet {cond}", f"not {name}") if neg else (f"meets {cond}", name)
+        )
     return (
         (f"does not satisfy {name}", f"not {name}")
         if neg
@@ -247,23 +250,41 @@ def mol_phrase(pred: str, neg: bool, net_charge: int) -> str:
     return f"not: {base}" if neg else base
 
 
-def guard_phrase(agg) -> str:
-    parts = []
-    inv = {"<": ">", "<=": ">=", ">": "<", ">=": "<=", "=": "=", "!=": "!="}
-    words = {
-        "=": "exactly",
-        "!=": "not exactly",
-        "<": "fewer than",
-        "<=": "at most",
-        ">": "more than",
-        ">=": "at least",
-    }
-    if agg.lguard:  # "t op #agg" == "#agg inv(op) t"
-        op, t = agg.lguard
-        parts.append(f"{words[inv[op]]} {t}")
+_MIRROR = {"<": ">", "<=": ">=", ">": "<", ">=": "<=", "=": "=", "!=": "!="}
+_BOUND_WORDS = {
+    "=": "exactly",
+    "!=": "not exactly",
+    "<": "fewer than",
+    "<=": "at most",
+    ">": "more than",
+    ">=": "at least",
+}
+
+
+def agg_bounds(agg) -> list[tuple[str, str]]:
+    """The aggregate's guards as ``#agg op t``. A count is a whole number, so its strict
+    bounds become ``<=`` / ``>=`` ("fewer than 2" is "at most 1")."""
+    out = []
+    if agg.lguard:  # "t op #agg" == "#agg mirror(op) t"
+        out.append((_MIRROR[agg.lguard[0]], agg.lguard[1]))
     if agg.rguard:
-        op, t = agg.rguard
-        parts.append(f"{words[op]} {t}")
+        out.append(agg.rguard)
+    if agg.func != "count":
+        return out
+    tight = []
+    for op, t in out:
+        if re.fullmatch(r"-?\d+", t) and op in ("<", ">"):
+            op, t = ("<=", str(int(t) - 1)) if op == "<" else (">=", str(int(t) + 1))
+        tight.append((op, t))
+    return tight
+
+
+def guard_phrase(agg, none: str = "no") -> str:
+    """ "at least 2", "at most 1 and ...", or ``none`` for a count that must be zero."""
+    parts = [
+        none if op in ("=", "<=") and t == "0" else f"{_BOUND_WORDS[op]} {t}"
+        for op, t in agg_bounds(agg)
+    ]
     return " and ".join(parts)
 
 

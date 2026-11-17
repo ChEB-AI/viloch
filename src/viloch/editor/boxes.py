@@ -67,6 +67,6 @@ def no_match_helper(agg: Agg, outer: set, k: int) -> tuple[Lit, AuxProgram] | No
     program = AuxProgram(
         name,
         f"{head} :- {', '.join(map(str, cond))}.",
-        "a pattern the molecule must not contain",
+        "",
     )
     return Lit(name, tuple(shared), True), program

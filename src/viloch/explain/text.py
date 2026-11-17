@@ -362,7 +362,7 @@ def _match_facts(loc: Local) -> list[str]:
             "contains the highlighted " + ("group" if len(pieces) == 1 else "groups")
         )
     for v, noun in loc.counts:
-        parts.append(f"has {v} {phrases.plural(noun, v)}")
+        parts.append(f"has {'no' if v == 0 else v} {phrases.plural(noun, v)}")
     parts += [p for p in loc.mol_facts if p]
     return parts
 
@@ -391,7 +391,14 @@ def local_text(loc: Local, class_name: str | None, parents: list[str]) -> str:
         if matched and not loc.missing[0].startswith(("it ", "there "))
         else ""
     )
-    text = f"This molecule {neg}: {where}{phrases.join_and(loc.missing[:2])}."
+    reasons = loc.missing[:2]
+    # "atom a is nitrogen, but carbon is needed, and ...": a comma keeps the reasons apart
+    joined = (
+        ", and ".join(reasons)
+        if len(reasons) == 2 and any("," in r for r in reasons)
+        else phrases.join_and(reasons)
+    )
+    text = f"This molecule {neg}: {where}{joined}."
     if loc.elsewhere:
         text += " " + loc.elsewhere[0]
     return text

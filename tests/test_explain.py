@@ -29,8 +29,18 @@ _SYNTAX = re.compile(
 )
 
 
+# An atom letter as the subject ("a is C, not O") reads like the article "a".
+_BARE_LETTER = re.compile(
+    r"(?:^|: |, |and )(?:the )?[a-h](?:–[a-h])? (?:is|has|carries)"
+)
+
+
 def readable(text: str) -> bool:
-    return bool(text.strip()) and not _SYNTAX.search(text.replace("CHEBI:", ""))
+    return (
+        bool(text.strip())
+        and not _SYNTAX.search(text.replace("CHEBI:", ""))
+        and not _BARE_LETTER.search(text)
+    )
 
 
 def load(name: str) -> Definition:
@@ -57,6 +67,51 @@ def test_local_explanation(name, molecule, fires):
     assert readable(expl.text), expl.text
     assert len(expl.text.split()) <= 2 * MAX_WORDS
     assert expl.image.width > 100
+
+
+NO = "This molecule does not satisfy the rule: "
+
+
+@pytest.mark.parametrize(
+    "name, molecule, text",
+    [
+        # an atom of the wrong element, named as "atom a"
+        (
+            "library_aux",
+            "benzene",
+            "in the closest match, atom a is carbon, but oxygen is needed.",
+        ),
+        # a negated molecule property: pyridine is aromatic
+        ("aliphatic_nitrogen", "pyridine", "it has aromatic atoms."),
+        # an element missing from the whole molecule; reasons it implies are left out
+        ("carboxylic_acid", "hexane", "it has no oxygen atom."),
+        (
+            "carboxylic_acid",
+            "ethanol",
+            "the bond between atoms a and b is single, but must be double.",
+        ),
+        # an editor "not" box: the pattern, not a placeholder description
+        (
+            "oxygen_without_nitrogen",
+            "glycine",
+            "it contains a nitrogen atom, which must be absent.",
+        ),
+        # an aux predicate's description
+        (
+            "recursive",
+            "ethanol",
+            "atom a does not meet the condition “the atom is linked by bonds to a nitrogen”.",
+        ),
+        (
+            "two_or_more_oxygens",
+            "benzene",
+            "it has no oxygen atoms, but must have at least 2.",
+        ),
+    ],
+)
+def test_near_miss_wording(name, molecule, text):
+    expl = explain_molecule(SMILES[molecule], load(name), library_dir=LIBRARY)
+    assert expl.text.startswith(NO + text), expl.text
 
 
 def test_class_name_without_graph():
