@@ -4,22 +4,19 @@ from __future__ import annotations
 
 import pytest
 
-from viloch.logic.rule_ir import Agg, parse_program
+from viloch.logic.rule_ir import Agg, agg_bounds, parse_program
 
 COUNT = "#count{ X : has_atom(M,X), o(X) }"
-_MIRROR = {"=": "=", "!=": "!=", "<": ">", "<=": ">=", ">": "<", ">=": "<="}
 
 
 def bounds(clause) -> list[tuple[str, str]]:
-    """The bounds of the clause's aggregates as ``#count op n``."""
-    out = []
-    for b in clause.body:
-        if isinstance(b, Agg):
-            if b.lguard:
-                out.append((_MIRROR[b.lguard[0]], b.lguard[1]))
-            if b.rguard:
-                out.append(b.rguard)
-    return out
+    """The bounds of the clause's aggregates as ``#count op n``, as written."""
+    return [
+        bound
+        for b in clause.body
+        if isinstance(b, Agg)
+        for bound in agg_bounds(b, tighten=False)
+    ]
 
 
 @pytest.mark.parametrize(

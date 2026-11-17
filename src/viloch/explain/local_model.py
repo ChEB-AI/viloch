@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import string
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 from rdkit import Chem
 
@@ -96,6 +97,13 @@ class Group:
     )  # atom idx -> note, atoms an absence condition inspected
 
 
+class Reason(NamedTuple):
+    """Why the closest match fails, completing "This molecule does not ...: <text>"."""
+
+    text: str
+    about_match: bool  # names atoms of the closest match ("atom a ...")
+
+
 @dataclass
 class Local:
     fires: bool
@@ -109,7 +117,7 @@ class Local:
     matched: list = field(default_factory=list)  # formula strings of the matched groups
     counts: list = field(default_factory=list)  # (value, noun)
     mol_facts: list = field(default_factory=list)  # phrases completing "it ..."
-    missing: list = field(default_factory=list)  # why the closest match fails
+    missing: list = field(default_factory=list)  # [Reason]: why the closest match fails
     elsewhere: list = field(default_factory=list)
 
 
@@ -440,6 +448,19 @@ def neg_alternatives(ng: NegGroup, b: dict, name_of_atom, molvar: str):
                 wheres.append(f"{nm} {merge_phrases(conds)}")
             else:
                 local_names[v] = tok
+        if len(nodes) == 1 and not edges and nodes[0] in local_names:
+            el = next(
+                (
+                    phrases.element_of(lit.pred)
+                    for lit in sub.atom_lits
+                    if lit.args == (nodes[0],) and not lit.neg
+                ),
+                None,
+            )
+            word = phrases.ELEMENT_NAME.get(el or "")
+            if word and local_names[nodes[0]] == var_token(sub, nodes[0]):
+                alts.append(f"{phrases.article(word)} {word} atom")  # not "N"
+                continue
         roots = [v for v in nodes if v in name_of]
         s, _ = phrases.render_graph(
             nodes,
@@ -604,17 +625,30 @@ def explain_match(loc: Local, rc: RuleContext, per_flat: list):
 
 
 class Letters:
-    """Letters for atoms referred to in the text, handed out on first use."""
+    """Letters for atoms referred to in the text, handed out on first use. ``used``
+    counts references, so a caller can tell whether a phrase named an atom."""
 
     def __init__(self, ctx: MolContext):
-        self.ctx, self.of = ctx, {}
+        self.ctx, self.of, self.used = ctx, {}, 0
 
     def __call__(self, i: int | None) -> str:
+        """The atom's letter (its element symbol once the letters run out)."""
         if i is None:
             return "an atom"
+        self.used += 1
         if i not in self.of and len(self.of) < len(LETTERS):
             self.of[i] = LETTERS[len(self.of)]
         return self.of.get(i, self.ctx.mol.GetAtomWithIdx(i).GetSymbol())
+
+    def ref(self, i: int | None) -> str:
+        """The atom as the subject of a phrase: "atom a"."""
+        return "an atom" if i is None else f"atom {self(i)}"
+
+    def pair(self, i: int | None, j: int | None) -> str:
+        """Two atoms: "atoms a and b"."""
+        if i is None or j is None:
+            return f"{self.ref(i)} and {self.ref(j)}"
+        return f"atoms {self(i)} and {self(j)}"
 
 
 def wrong_value(ctx: MolContext, idx: int, pred: str, aux_desc: dict) -> str:
@@ -664,7 +698,7 @@ def wrong_value(ctx: MolContext, idx: int, pred: str, aux_desc: dict) -> str:
             (phrases.exact_h(p) for p in preds if phrases.exact_h(p) is not None), 0
         )
         k = int(pred.split("_")[3])
-        return f"carries {phrases.num(n) if n else 'no'} H; at least {phrases.num(k)} {'is' if k == 1 else 'are'} needed"
+        return f"carries {phrases.num(n) if n else 'no'} H, but at least {phrases.num(k)} {'is' if k == 1 else 'are'} needed"
     if fam == "charge" or pred in ("charge0", "charge_p", "charge_n"):
         q = f"{atom.GetFormalCharge():+d}".replace("-", "−").replace("+0", "0")
         want, _ = phrases.unary_phrase(pred)
@@ -681,7 +715,7 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
     outer_desc = aux_desc.get(tag[0]) if tag else None
 
     def who(v):
-        return f"atom {name(atom_index(b.get(v, '')))}"
+        return name.ref(atom_index(b.get(v, "")))
 
     if isinstance(item, Lit) and (item.pred in MOL_PREDS or set(item.args) <= {molvar}):
         net = Chem.GetFormalCharge(ctx.mol)
@@ -727,13 +761,12 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
         d = (aux_desc.get(item.source_pred) if item.source_pred else None) or outer_desc
         if d:
             return f"it does not meet the condition “{phrases.as_clause(d)}”"
-        alts = [_single_atom(a) for a in alts]
         return f"it contains {' or '.join(alts)}{where}, which must be absent"
     if isinstance(item, Cmp):
-        return (
-            f"atoms {name(atom_index(b.get(item.left, '')))} and "
-            f"{name(atom_index(b.get(item.right, '')))} would have to be different"
+        pair = name.pair(
+            atom_index(b.get(item.left, "")), atom_index(b.get(item.right, ""))
         )
+        return f"{pair} would have to be different"
     if isinstance(item, Lit) and len(item.args) == 1:
         v = item.args[0]
         if v not in nm.anchored:
@@ -764,8 +797,8 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
             iu, iv = atom_index(b[u]), atom_index(b[v])
             actual = ctx.bond_pred(iu, iv)
             if actual and word:
-                return f"the bond between atoms {name(iu)} and {name(iv)} is {phrases.bond_word(actual)}, but must be {word}"
-            return f"atoms {name(iu)} and {name(iv)} are not bonded"
+                return f"the bond between {name.pair(iu, iv)} is {phrases.bond_word(actual)}, but must be {word}"
+            return f"{name.pair(iu, iv)} are not bonded"
         anchored = u if u in nm.anchored else (v if v in nm.anchored else None)
         if anchored:
             other = v if anchored == u else u
@@ -797,29 +830,46 @@ def missing_phrase(nm: NearMiss, i: int, ctx: MolContext, name, aux_desc: dict) 
     return "one more condition fails"
 
 
-def _single_atom(formula: str) -> str:
-    """``"N"`` -> ``"a nitrogen atom"``; longer formulas stay as they are."""
-    if not re.fullmatch(r"[A-Z][a-z]?", formula):
-        return formula
-    el = phrases.ELEMENT_NAME.get(formula.lower())
-    return f"{phrases.article(el)} {el} atom" if el else formula
-
-
-def _drop_implied(missing: list[str]) -> list[int]:
-    """Positions of the reasons worth stating: no duplicates, and none that "it has no
-    oxygen atom" already implies (e.g. "atom b is carbon, but oxygen is needed")."""
-    absent = [m.split()[3] for m in missing if re.fullmatch(r"it has no \w+ atom", m)]
-    seen, keep = set(), []
-    for k, m in enumerate(missing):
-        if m in seen:
+def _implied(nm: NearMiss, ctx: MolContext) -> set[int]:
+    """Failing items that "it has no oxygen atom" already explains: a second literal for
+    an element the molecule lacks, and anything about an atom of that element (e.g.
+    "atom b is carbon, but oxygen is needed", or a bond to it)."""
+    present = {a.GetSymbol().lower() for a in ctx.mol.GetAtoms()}
+    element = {}  # variable -> its (positive) element literal's element
+    for it, _ in nm.tclause.body:
+        if isinstance(it, Lit) and not it.neg and len(it.args) == 1:
+            el = phrases.element_of(it.pred)
+            if el:
+                element[it.args[0]] = el
+    absent, implied = set(), set()
+    for i in nm.unsat:
+        it = nm.tclause.body[i][0]
+        el = element.get(it.args[0]) if isinstance(it, Lit) and it.args else None
+        stated = (
+            el
+            and len(it.args) == 1
+            and phrases.element_of(it.pred) == el
+            and it.args[0] not in nm.anchored
+            and el != "h"
+            and el not in present
+        )
+        if stated and el not in absent:
+            absent.add(el)
+        elif stated:
+            implied.add(i)  # the same "it has no ... atom" again
+    for i in nm.unsat:
+        it = nm.tclause.body[i][0]
+        if isinstance(it, Lit):
+            if len(it.args) == 1 and it.args[0] not in nm.anchored:
+                continue  # what the molecule lacks, stated above
+            terms = it.args
+        elif isinstance(it, Cmp):
+            terms = (it.left, it.right)
+        else:
             continue
-        if not m.startswith("it has no ") and any(
-            re.search(rf"\b{a}\b", m) for a in absent
-        ):
-            continue
-        seen.add(m)
-        keep.append(k)
-    return keep
+        if any(element.get(v) in absent for v in terms):
+            implied.add(i)
+    return implied
 
 
 def explain_miss(loc: Local, rc: RuleContext):
@@ -830,13 +880,14 @@ def explain_miss(loc: Local, rc: RuleContext):
     nm = min(nms, key=rank_key)
     tc, b = nm.tclause, nm.binding
     name = Letters(ctx)
-    # Pick the reasons with scratch letters, so only atoms the text names get a letter.
-    scratch, unsat = Letters(ctx), list(nm.unsat)
-    draft = [missing_phrase(nm, i, ctx, scratch, rc.aux_desc) for i in unsat]
-    loc.missing = [
-        missing_phrase(nm, unsat[k], ctx, name, rc.aux_desc)
-        for k in _drop_implied(draft)
-    ]
+    implied = _implied(nm, ctx)
+    for i in nm.unsat:
+        if i in implied:
+            continue
+        used = name.used
+        text = missing_phrase(nm, i, ctx, name, rc.aux_desc)
+        if all(r.text != text for r in loc.missing):
+            loc.missing.append(Reason(text, about_match=name.used > used))
     notes: dict[int, list[str]] = {}
     agg_legend: list = []
     struct_cols: set = set()

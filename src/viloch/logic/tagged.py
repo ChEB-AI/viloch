@@ -20,6 +20,7 @@ from viloch.logic.rule_ir import (
     _unify_head,
     recursive_preds,
     substitute,
+    zero_count_cond,
 )
 
 
@@ -116,6 +117,12 @@ def unfold_tagged(
                 kept.setdefault(item.pred, "negated, too many alternatives")
                 return [[pair]]
             return [[(NegGroup(tuple(tuple(a) for a in alts), item.pred), child_tag)]]
+        cond = zero_count_cond(item)
+        if cond is not None and policy.inline_negation:  # "no such pattern"
+            sub_alts = expand_body([(c, ()) for c in cond], fresh, depth + 1)
+            if sub_alts is not None and len(sub_alts) <= policy.max_neg_alternatives:
+                alts = tuple(tuple(b for b, _ in a) for a in sub_alts)
+                return [[(NegGroup(alts), tag)]]
         if isinstance(item, Agg):
             new_elems = []
             for e in item.elems:

@@ -31,6 +31,7 @@ from viloch.logic.rule_ir import (
     ordered_vars,
     recursive_preds,
     substitute,
+    zero_count_cond,
 )
 
 _pt = Chem.GetPeriodicTable()
@@ -315,6 +316,10 @@ def display_unfold(
             if merged is not None:
                 alts = [merged]
             return [NegGroup(tuple(tuple(a) for a in alts), item.pred)]
+        cond = zero_count_cond(item)
+        if cond is not None:  # "no such pattern": a negation
+            body = _ground_simplify(expand_body(list(cond), fresh, depth + 1))
+            return [] if body is None else [NegGroup((tuple(body),))]
         if isinstance(item, Agg):
             elems = tuple(
                 AggElem(e.terms, tuple(expand_body(list(e.cond), fresh, depth + 1)))

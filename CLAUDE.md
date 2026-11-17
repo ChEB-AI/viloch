@@ -22,8 +22,9 @@ Guidance for working in this repo. Keep entries factual and present-tense.
 - `editor/asp.py` is the only ASP <-> editor-model conversion; the JS editor (`web/static/blocks.js`)
   has no parser or compiler and talks to the server. Its behaviour is pinned by the goldens in
   `tests/fixtures/editor/`, captured from icarus' original `blocks.js`.
-- `editor/boxes.py` turns the editor's "not" boxes (`#count{…} = 0`) into negated helper
-  predicates for the explainer; `api.prepare` applies it (and `chem.efg.install()`).
+- The explainer's unfolders (`logic/tagged.py`, `logic/display_logic.py`) read a count that
+  must be zero (the editor's "not" box, `#count{…} = 0`) as a negation (`NegGroup`);
+  `rule_ir.unfold` keeps it, because the editor's unfold view uses it.
 - `logic/rule_ir.py` has no negated aggregates: `not #count{…} > 2` parses as
   `#count{…} <= 2`, and a negated two-sided count as two clauses (one per failing bound).
 

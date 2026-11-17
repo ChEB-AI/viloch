@@ -7,27 +7,25 @@ import io
 import pickle
 
 from viloch.definition import Definition
-from viloch.editor.boxes import explainer_inputs
 
 
-def as_definition(
-    definition: Definition | str, target: str | None = None
-) -> Definition:
+def as_definition(definition: Definition | str) -> Definition:
     return (
         definition
         if isinstance(definition, Definition)
-        else Definition.parse(definition, target)
+        else Definition.parse(definition)
     )
 
 
-def prepare(definition: Definition | str, library_dir: str | None = None) -> Definition:
-    """The definition ready for the explainer: library predicates filled in and the
-    editor's "not" boxes turned into negated helper predicates."""
+def prepare(
+    definition: Definition | str, library_dir: str | None = None, strict: bool = True
+) -> Definition:
+    """The definition ready for the explainer: library predicates filled in (see
+    :meth:`Definition.resolve` for ``strict``), and the EFG matcher installed."""
     from viloch.chem import efg
 
     efg.install()
-    defn = as_definition(definition).resolve(library_dir)
-    return explainer_inputs(defn)
+    return as_definition(definition).resolve(library_dir, strict)
 
 
 def load_chebi_graph(path: str | None):
@@ -42,6 +40,7 @@ def explain_rule(
     definition: Definition | str,
     *,
     library_dir: str | None = None,
+    strict: bool = True,
     chebi_graph=None,
     class_name: str | None = None,
 ):
@@ -51,7 +50,7 @@ def explain_rule(
     """
     from viloch.explain.explain import explain_rule as _explain_rule
 
-    defn = prepare(definition, library_dir)
+    defn = prepare(definition, library_dir, strict)
     return _explain_rule(
         defn.rule,
         chebi_graph=chebi_graph,
@@ -65,6 +64,7 @@ def explain_molecule(
     definition: Definition | str,
     *,
     library_dir: str | None = None,
+    strict: bool = True,
     chebi_graph=None,
     class_name: str | None = None,
     name: str | None = None,
@@ -74,7 +74,7 @@ def explain_molecule(
     ``fires``)."""
     from viloch.explain.explain import explain_molecule as _explain_molecule
 
-    defn = prepare(definition, library_dir)
+    defn = prepare(definition, library_dir, strict)
     return _explain_molecule(
         molecule,
         defn.rule,
@@ -85,8 +85,15 @@ def explain_molecule(
     )
 
 
+def as_json(expl) -> dict:
+    """An explanation as JSON: ``{"text", "image" (PNG data URL)}``, plus ``"fires"``
+    for a molecule."""
+    out = {"text": expl.text, "image": png_data_url(expl.image)}
+    return out if expl.fires is None else {"fires": expl.fires, **out}
+
+
 def png_data_url(image) -> str:
     """A PIL image as a ``data:image/png;base64,…`` URL."""
     buf = io.BytesIO()
-    image.save(buf, format="PNG", optimize=True)
+    image.save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")

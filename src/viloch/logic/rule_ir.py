@@ -32,6 +32,15 @@ _OPS = {
     ComparisonOperator.GreaterThan: ">",
     ComparisonOperator.GreaterEqual: ">=",
 }
+NEGATE = {"=": "!=", "!=": "=", "<": ">=", "<=": ">", ">": "<=", ">=": "<"}
+MIRROR = {
+    "=": "=",
+    "!=": "!=",
+    "<": ">",
+    "<=": ">=",
+    ">": "<",
+    ">=": "<=",
+}  # a op b == b op' a
 _AGG_FUNCS = {
     AggregateFunction.Count: "count",
     AggregateFunction.Sum: "sum",
@@ -88,6 +97,34 @@ class Agg:
         return s
 
 
+def agg_bounds(agg: Agg, tighten: bool = True) -> list[tuple[str, str]]:
+    """The aggregate's guards as ``#agg op t``. A count is a whole number, so with
+    ``tighten`` its strict integer bounds become ``<=`` / ``>=`` ("< 2" is "<= 1")."""
+    out = []
+    if agg.lguard:  # "t op #agg" == "#agg mirror(op) t"
+        out.append((MIRROR[agg.lguard[0]], agg.lguard[1]))
+    if agg.rguard:
+        out.append(agg.rguard)
+    if not tighten or agg.func != "count":
+        return out
+    tight = []
+    for op, t in out:
+        if re.fullmatch(r"-?\d+", t) and op in ("<", ">"):
+            op, t = ("<=", str(int(t) - 1)) if op == "<" else (">=", str(int(t) + 1))
+        tight.append((op, t))
+    return tight
+
+
+def zero_count_cond(item) -> tuple | None:
+    """The condition of a count that must be zero (``#count{ T : cond } = 0``, ``< 1``,
+    ``<= 0``): no binding of ``cond`` may exist, which is a negation. Else None."""
+    if not isinstance(item, Agg) or item.func != "count" or len(item.elems) != 1:
+        return None
+    if agg_bounds(item) in ([("=", "0")], [("<=", "0")]):
+        return item.elems[0].cond
+    return None
+
+
 @dataclass(frozen=True)
 class NegGroup:
     alternatives: tuple[tuple, ...]  # each a tuple of body items
@@ -137,7 +174,7 @@ def _lit_from_ast(lit) -> Lit | Cmp | Agg:
         g = atom.guards[0]
         op = _OPS[g.comparison]
         if neg:
-            op = {"=": "!=", "!=": "=", "<": ">=", "<=": ">", ">": "<=", ">=": "<"}[op]
+            op = NEGATE[op]
         return Cmp(left, op, str(g.term))
     if atom.ast_type == ASTType.BodyAggregate:
         elems = []
@@ -160,10 +197,6 @@ def _lit_from_ast(lit) -> Lit | Cmp | Agg:
     raise ValueError(f"unsupported body atom: {lit}")
 
 
-_NEGATE = {"=": "!=", "!=": "=", "<": ">=", "<=": ">", ">": "<=", ">=": "<"}
-_MIRROR = {"=": "=", "!=": "!=", "<": ">", "<=": ">=", ">": "<", ">=": "<="}
-
-
 @dataclass(frozen=True)
 class _Either:
     """``not L op1 #agg op2 U`` while parsing: either bound fails. :func:`parse_program`
@@ -175,16 +208,12 @@ class _Either:
 def _negated_agg(agg: Agg, text: str) -> Agg | _Either:
     """``not #agg op t`` as the aggregate with the opposite guard (``#agg op' t``); with
     two guards, the two ways it can fail. The IR has no negated aggregates."""
-    guards = []  # each as "#agg op t"
-    if agg.lguard:
-        guards.append((_MIRROR[agg.lguard[0]], agg.lguard[1]))
-    if agg.rguard:
-        guards.append(agg.rguard)
+    guards = agg_bounds(agg, tighten=False)
     if not guards:
         raise ValueError(f"negated aggregate without a bound: {text}")
     alts = []
     for op, t in guards:
-        op = _NEGATE[op]
+        op = NEGATE[op]
         if agg.func == "count" and op == "!=" and t == "0":
             op, t = ">=", "1"  # a count is never negative
         alts.append(Agg(agg.func, agg.elems, None, (op, t)))

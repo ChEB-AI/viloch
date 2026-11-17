@@ -153,7 +153,8 @@ class Definition:
         but does not define, transitively (chebILP's ``resolve_rule_dependencies``).
 
         ``strict``: raise ``ValueError`` if predicates stay undefined (no library, or
-        the library does not define them). Otherwise return what could be resolved.
+        the library does not define them). Otherwise return what could be resolved,
+        also when the library cannot be read.
         """
         missing = self.used_aux()
         if not missing:
@@ -171,9 +172,14 @@ class Definition:
         )
 
         source = self.rule + "\n" + "\n".join(p.source for p in self.aux)
-        deps = resolve_rule_dependencies(
-            [RuleProgram(name="__rule__", source=source)], library_dir
-        )
+        try:
+            deps = resolve_rule_dependencies(
+                [RuleProgram(name="__rule__", source=source)], library_dir
+            )
+        except OSError, ValueError:  # an unreadable library file
+            if strict:
+                raise
+            return self
         extra, seen = [], set(self.defined)
         for d in deps:
             if d.name not in seen:

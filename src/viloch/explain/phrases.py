@@ -7,6 +7,7 @@ import re
 from rdkit import Chem
 
 from viloch.explain.molecule import BOND_PREDS, ELEMENTS
+from viloch.logic.rule_ir import agg_bounds
 
 _NUM = {
     1: "one",
@@ -250,7 +251,6 @@ def mol_phrase(pred: str, neg: bool, net_charge: int) -> str:
     return f"not: {base}" if neg else base
 
 
-_MIRROR = {"<": ">", "<=": ">=", ">": "<", ">=": "<=", "=": "=", "!=": "!="}
 _BOUND_WORDS = {
     "=": "exactly",
     "!=": "not exactly",
@@ -259,24 +259,6 @@ _BOUND_WORDS = {
     ">": "more than",
     ">=": "at least",
 }
-
-
-def agg_bounds(agg) -> list[tuple[str, str]]:
-    """The aggregate's guards as ``#agg op t``. A count is a whole number, so its strict
-    bounds become ``<=`` / ``>=`` ("fewer than 2" is "at most 1")."""
-    out = []
-    if agg.lguard:  # "t op #agg" == "#agg mirror(op) t"
-        out.append((_MIRROR[agg.lguard[0]], agg.lguard[1]))
-    if agg.rguard:
-        out.append(agg.rguard)
-    if agg.func != "count":
-        return out
-    tight = []
-    for op, t in out:
-        if re.fullmatch(r"-?\d+", t) and op in ("<", ">"):
-            op, t = ("<=", str(int(t) - 1)) if op == "<" else (">=", str(int(t) + 1))
-        tight.append((op, t))
-    return tight
 
 
 def guard_phrase(agg, none: str = "no") -> str:

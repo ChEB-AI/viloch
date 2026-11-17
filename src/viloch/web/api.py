@@ -148,17 +148,17 @@ def make_routes(library_dir: str | None = None, target: str = "concept") -> list
         return name if isinstance(name, str) and name.strip() else None
 
     def explain_rule(body: dict) -> dict:
+        from viloch.api import as_json
         from viloch.api import explain_rule as _explain
-        from viloch.api import png_data_url
 
         expl = _explain(
             definition_of(body), library_dir=library_dir, class_name=class_name(body)
         )
-        return {"text": expl.text, "image": png_data_url(expl.image)}
+        return as_json(expl)
 
     def explain_molecule(body: dict) -> dict:
+        from viloch.api import as_json
         from viloch.api import explain_molecule as _explain
-        from viloch.api import png_data_url
 
         molecule = body.get("molecule")
         if not isinstance(molecule, str) or not molecule.strip():
@@ -173,11 +173,7 @@ def make_routes(library_dir: str | None = None, target: str = "concept") -> list
             name=name or None,
             class_name=class_name(body),
         )
-        return {
-            "fires": expl.fires,
-            "text": expl.text,
-            "image": png_data_url(expl.image),
-        }
+        return as_json(expl)
 
     def post(fn):
         async def endpoint(request: Request):

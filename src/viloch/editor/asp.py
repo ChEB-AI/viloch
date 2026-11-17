@@ -27,13 +27,12 @@ import itertools
 import math
 
 from viloch.definition import split_clauses
-from viloch.logic.rule_ir import Agg, Cmp, Lit, parse_program
+from viloch.logic.rule_ir import MIRROR, Agg, Cmp, Lit, parse_program
 
 DEFAULT_TARGET = "concept"
 NEQ = "!="
 LT = "<"
 COUNT_OPS = ("=", ">=", "<=", ">", "<", "between")
-_FLIP = {"=": "=", "!=": "!=", "<": ">", "<=": ">=", ">": "<", ">=": "<="}
 
 
 def _is_var(a: str) -> bool:
@@ -234,7 +233,7 @@ def _body_literal(item, anon, in_aggregate: bool = False) -> dict:
             if _is_var(left) and left != "_" and _is_int(right):
                 return _cmp_const(item, left, op, int(right))
             if _is_int(left) and _is_var(right) and right != "_":
-                return _cmp_const(item, right, _FLIP[op], int(left))
+                return _cmp_const(item, right, MIRROR[op], int(left))
         return _unsupported(str(item))
     if isinstance(item, Agg) and not in_aggregate:
         return _aggregate(item, anon)
@@ -293,7 +292,7 @@ def _aggregate(agg: Agg, anon) -> dict:
         n2 = int(rg[1]) - (1 if rg[0] == "<" else 0)
         return {**base, "op": op, "n": n, "n2": n2}
     if lg:
-        op, n = _FLIP[lg[0]], int(lg[1])
+        op, n = MIRROR[lg[0]], int(lg[1])
     else:
         op, n = rg[0], int(rg[1])
     if op == "!=":

@@ -386,18 +386,9 @@ def local_text(loc: Local, class_name: str | None, parents: list[str]) -> str:
     if not loc.missing:
         return f"This molecule {neg}."
     matched = any("match" in c for c in loc.atom_cols.values())
-    where = (
-        "in the closest match, "
-        if matched and not loc.missing[0].startswith(("it ", "there "))
-        else ""
-    )
-    reasons = loc.missing[:2]
-    # "atom a is nitrogen, but carbon is needed, and ...": a comma keeps the reasons apart
-    joined = (
-        ", and ".join(reasons)
-        if len(reasons) == 2 and any("," in r for r in reasons)
-        else phrases.join_and(reasons)
-    )
+    where = "in the closest match, " if matched and loc.missing[0].about_match else ""
+    # "atom a is nitrogen, but carbon is needed, and ...": a comma keeps reasons apart
+    joined = ", and ".join(r.text for r in loc.missing[:2])
     text = f"This molecule {neg}: {where}{joined}."
     if loc.elsewhere:
         text += " " + loc.elsewhere[0]
