@@ -148,16 +148,19 @@ class Definition:
                     todo.append(by_name[name].source)
         return replace(self, aux=tuple(p for p in self.aux if p.name in keep))
 
-    def resolve(self, library_dir: str | None) -> Definition:
+    def resolve(self, library_dir: str | None, strict: bool = True) -> Definition:
         """Append the library programs of the ``aux_*`` predicates this definition uses
         but does not define, transitively (chebILP's ``resolve_rule_dependencies``).
 
-        Raises ``ValueError`` if predicates are missing and no library is given.
+        ``strict``: raise ``ValueError`` if predicates stay undefined (no library, or
+        the library does not define them). Otherwise return what could be resolved.
         """
         missing = self.used_aux()
         if not missing:
             return self
         if library_dir is None or not os.path.isdir(library_dir):
+            if not strict:
+                return self
             raise ValueError(
                 f"The rule uses {', '.join(missing)}, which it does not define; "
                 "pass the aux library directory that defines them."
@@ -181,7 +184,7 @@ class Definition:
                 extra.append(AuxProgram(d.name, clauses, d.description or ""))
         resolved = replace(self, aux=self.aux + tuple(extra))
         still = resolved.used_aux()
-        if still:
+        if still and strict:
             raise ValueError(
                 f"{', '.join(still)} {'is' if len(still) == 1 else 'are'} not defined "
                 f"in the definition or the library {library_dir}."

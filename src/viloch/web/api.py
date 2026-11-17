@@ -44,17 +44,15 @@ class BadRequest(ValueError):
     """A client input that is refused; the message is shown to the user."""
 
 
-def check_rule_text(text, what: str = "rule") -> str:
+def check_rule_text(text, what: str = "rule", max_chars: int = MAX_RULE_CHARS) -> str:
     """``text`` stripped, or ``BadRequest``: it must be a string of bounded size
     without interval terms, since it is grounded with clingo."""
     if text is None:
         return ""
     if not isinstance(text, str):
         raise BadRequest(f"The {what} must be text.")
-    if len(text) > MAX_RULE_CHARS:
-        raise BadRequest(
-            f"The {what} is too long (at most {MAX_RULE_CHARS} characters)."
-        )
+    if len(text) > max_chars:
+        raise BadRequest(f"The {what} is too long (at most {max_chars} characters).")
     if _INTERVAL_RE.search(text):
         raise BadRequest("Intervals (a..b) are not supported in rules.")
     return text.strip()

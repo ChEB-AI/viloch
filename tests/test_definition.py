@@ -76,3 +76,15 @@ def test_resolve_is_a_no_op_when_self_contained():
 )
 def test_split_clauses(text, clauses):
     assert split_clauses(text) == clauses
+
+
+def test_lenient_resolve_keeps_what_it_finds(tmp_path):
+    text = "concept(M) :- aux_hydroxy(M), aux_nope(M)."
+    d = Definition.parse(text).resolve(str(LIBRARY), strict=False)
+    assert [p.name for p in d.aux] == ["aux_hydroxy", "aux_on_carbon"]
+    assert d.used_aux() == ["aux_nope"]
+    assert (
+        Definition.parse(text).resolve(str(tmp_path / "none"), strict=False).aux == ()
+    )
+    with pytest.raises(ValueError, match="aux_nope"):
+        Definition.parse(text).resolve(str(LIBRARY))
