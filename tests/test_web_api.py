@@ -162,3 +162,12 @@ def test_explain_endpoints(client):
         },
     ).json()
     assert mol["fires"] is True and mol["text"]
+
+
+def test_parse_brings_blocks_of_library_predicates(client):
+    """A rule using a library predicate gets a palette block for it."""
+    data = client.post(
+        "/api/parse", json={"definition": "concept(M) :- aux_hydroxy(M)."}
+    ).json()
+    assert [b["input"]["pred"] for b in data["blocks"]] == ["aux_hydroxy"]
+    assert data["aux"] == []  # resolved for unfolding, not added to the definition

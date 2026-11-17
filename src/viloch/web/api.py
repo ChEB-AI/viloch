@@ -105,6 +105,7 @@ def make_routes(
     """The editor API routes. ``library_dir``: the aux rule library that resolves
     ``aux_*`` predicates a definition uses but does not define (optional);
     ``target``: the head predicate of edited rules unless a request names one."""
+    catalog.warm_aux_index(library_dir)
 
     def definition_of(body: dict) -> Definition:
         text = check_rule_text(body.get("definition"), "definition")

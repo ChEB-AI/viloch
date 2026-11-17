@@ -34,6 +34,7 @@ import functools
 import json
 import os
 import re
+import threading
 
 # Common elements offered as ready-made blocks / recognised by name. Arbitrary
 # elements are still expressible through the free-text "Other element" block; the
@@ -596,14 +597,34 @@ def aux_label(pred: str) -> str:
     return _ID_SUFFIX_RE.sub("", name).replace("_", " ").strip()
 
 
-@functools.lru_cache(maxsize=4)
+_INDEX_LOCK = threading.Lock()
+
+
 def aux_index(library_dir: str) -> tuple[dict, dict]:
     """Every predicate of the (read-only) library, loaded once:
     ``({name: (description, arity, label, origin_chebi_id, role)}, {label: count})``,
     ``role`` being "molecule", "atom" or None (see :func:`aux_roles`).
     Several predicates share a readable label (``aux_acyclic_molecule`` and
     ``aux_acyclic_molecule_10283`` both read "acyclic molecule"); the counts mark
-    the labels that need the ChEBI id to tell them apart."""
+    the labels that need the ChEBI id to tell them apart.
+
+    Loading a large library takes a while: concurrent first calls wait for one load
+    (:func:`warm_aux_index` starts it in the background)."""
+    if not (library_dir and os.path.isdir(library_dir)):
+        return {}, {}
+    with _INDEX_LOCK:
+        return _aux_index(library_dir)
+
+
+def warm_aux_index(library_dir: str | None) -> None:
+    """Load the library index in a background thread, so the first search or palette
+    does not wait for it."""
+    if library_dir and os.path.isdir(library_dir):
+        threading.Thread(target=aux_index, args=(library_dir,), daemon=True).start()
+
+
+@functools.lru_cache(maxsize=4)
+def _aux_index(library_dir: str) -> tuple[dict, dict]:
     if not (library_dir and os.path.isdir(library_dir)):
         return {}, {}
     origins = _origins(library_dir)
@@ -790,10 +811,15 @@ def search_aux_blocks(
 
 def definition_blocks(defn, library_dir: str | None = None) -> list[dict]:
     """Palette blocks for what a definition brings along: its own auxiliary
-    predicates (whatever their prefix) and the EFG groups it uses."""
+    predicates (whatever their prefix), the library predicates it uses, and the EFG
+    groups it uses."""
     from viloch.chem import efg
 
     own = {p.name: p.description for p in defn.aux}
     text = defn.to_text()
-    blocks = aux_blocks(library_dir, names=set(), rule_descriptions=own, rule=text)
+    used = set(defn.used_aux())
+    # Without library predicates there is no need to wait for the library's index.
+    blocks = aux_blocks(
+        library_dir if used else None, names=used, rule_descriptions=own, rule=text
+    )
     return blocks + efg_blocks(efg.referenced(text))
