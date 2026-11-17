@@ -163,7 +163,10 @@ class Definition:
         for d in deps:
             if d.name not in seen:
                 seen.add(d.name)
-                extra.append(AuxProgram(d.name, d.source.strip(), d.description or ""))
+                # Library sources carry their own header comments; the program keeps
+                # the description separately, so only the clauses are kept.
+                clauses = "\n".join(split_clauses(d.source))
+                extra.append(AuxProgram(d.name, clauses, d.description or ""))
         return replace(self, aux=self.aux + tuple(extra))
 
 
