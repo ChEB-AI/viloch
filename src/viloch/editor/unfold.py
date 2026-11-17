@@ -291,3 +291,12 @@ def _neg_boxes(lit, mol: str, bound: set, taken: tuple, defs: dict, policy):
             terms = ",".join(own) if own else mol
             boxes.append(f"#count{{ {terms} : {', '.join(map(str, alt))} }} = 0")
     return boxes or None
+
+
+def unfold_pred(defn: Definition, pred: str) -> tuple[str, str | None]:
+    """``(rule, error)``: the main rule with only ``pred`` unfolded, and why it stayed
+    folded (``None`` if it was unfolded)."""
+    out = editor_rule(defn, pred)
+    if not re.search(rf"(?<![A-Za-z0-9_]){re.escape(pred)}\s*\(", out):
+        return out, None
+    return out, f"Could not unfold {pred}: {unfold_failure(defn, pred)}."

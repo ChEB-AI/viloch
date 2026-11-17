@@ -60,6 +60,7 @@ markers = [
     "snapshot: pixel regression of rendered explanations (local only; fonts/cairo vary)",
 ]
 addopts = "-m 'not e2e and not snapshot'"
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`:DeprecationWarning"]
 
 
 [tool.ruff.lint]

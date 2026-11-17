@@ -136,6 +136,18 @@ class Definition:
             ),
         )
 
+    def prune(self) -> Definition:
+        """Only the auxiliary programs the main rule uses, directly or through other
+        programs (e.g. after an edit removed a predicate)."""
+        by_name = {p.name: p for p in self.aux}
+        keep, todo = set(), [self.rule]
+        while todo:
+            for name in _CALL_RE.findall(todo.pop()):
+                if name in by_name and name not in keep:
+                    keep.add(name)
+                    todo.append(by_name[name].source)
+        return replace(self, aux=tuple(p for p in self.aux if p.name in keep))
+
     def resolve(self, library_dir: str | None) -> Definition:
         """Append the library programs of the ``aux_*`` predicates this definition uses
         but does not define, transitively (chebILP's ``resolve_rule_dependencies``).
@@ -167,7 +179,14 @@ class Definition:
                 # the description separately, so only the clauses are kept.
                 clauses = "\n".join(split_clauses(d.source))
                 extra.append(AuxProgram(d.name, clauses, d.description or ""))
-        return replace(self, aux=self.aux + tuple(extra))
+        resolved = replace(self, aux=self.aux + tuple(extra))
+        still = resolved.used_aux()
+        if still:
+            raise ValueError(
+                f"{', '.join(still)} {'is' if len(still) == 1 else 'are'} not defined "
+                f"in the definition or the library {library_dir}."
+            )
+        return resolved
 
 
 # ── clause-level helpers ───────────────────────────────────────────────────

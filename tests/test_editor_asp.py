@@ -58,3 +58,11 @@ def test_syntax_error_stays_raw():
 
 def test_facts_are_skipped():
     assert from_asp("concept(m1).") == {"clauses": []}
+
+
+@pytest.mark.parametrize("name", CASES)
+def test_models_match_the_schema(name):
+    from viloch.editor.model import validate
+
+    validate(from_asp(_read(name, ".lp")))
+    validate(json.loads(_read(name, ".model.json")))

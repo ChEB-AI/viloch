@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: pre-commit/action@v3.0.1
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: uv venv && uv pip install -e ".[web,dev]"
+      - name: Python tests
+        run: uv run --no-sync pytest --cov=viloch --cov-report=term-missing
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Node tests (editor helpers)
+        run: node --test tests/js/*.test.cjs
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: |
+          uv venv && uv pip install -e ".[web,dev,e2e]"
+          uv run --no-sync playwright install --with-deps chromium
+      - name: Browser tests
+        run: uv run --no-sync pytest -m e2e tests/e2e
