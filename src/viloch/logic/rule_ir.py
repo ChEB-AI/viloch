@@ -8,7 +8,9 @@ Body items:
   Cmp(left, op, right)          X != Y, L = L0 + 1, K < 9
   Agg(func, elems, lguard, rguard)
       func in {"count","sum","min","max",...}; elems = [AggElem(terms, cond)], cond a list
-      of Lit/Cmp; guards are (op, term) or None, e.g. 22 = #count{...} -> lguard ("=", "22")
+      of Lit/Cmp; guards are (op, term) or None, e.g. 22 = #count{...} -> lguard ("=", "22").
+      There are no negated aggregates: "not #count{...} > 2" is read as "#count{...} <= 2",
+      and "not 1 <= #count{...} <= 3" as two clauses ("< 1" or "> 3").
   NegGroup(alternatives)        not aux(X) after unfolding: "none of these bodies holds";
                                 each alternative is a list of body items whose variables
                                 not shared with the enclosing clause are existential.
@@ -153,8 +155,40 @@ def _lit_from_ast(lit) -> Lit | Cmp | Agg:
             else None
         )
         func = _AGG_FUNCS[atom.function]
-        return Agg(func, tuple(elems), lg, rg)
+        agg = Agg(func, tuple(elems), lg, rg)
+        return _negated_agg(agg, str(lit)) if neg else agg
     raise ValueError(f"unsupported body atom: {lit}")
+
+
+_NEGATE = {"=": "!=", "!=": "=", "<": ">=", "<=": ">", ">": "<=", ">=": "<"}
+_MIRROR = {"=": "=", "!=": "!=", "<": ">", "<=": ">=", ">": "<", ">=": "<="}
+
+
+@dataclass(frozen=True)
+class _Either:
+    """``not L op1 #agg op2 U`` while parsing: either bound fails. :func:`parse_program`
+    turns it into one clause per alternative."""
+
+    alternatives: tuple[Agg, ...]
+
+
+def _negated_agg(agg: Agg, text: str) -> Agg | _Either:
+    """``not #agg op t`` as the aggregate with the opposite guard (``#agg op' t``); with
+    two guards, the two ways it can fail. The IR has no negated aggregates."""
+    guards = []  # each as "#agg op t"
+    if agg.lguard:
+        guards.append((_MIRROR[agg.lguard[0]], agg.lguard[1]))
+    if agg.rguard:
+        guards.append(agg.rguard)
+    if not guards:
+        raise ValueError(f"negated aggregate without a bound: {text}")
+    alts = []
+    for op, t in guards:
+        op = _NEGATE[op]
+        if agg.func == "count" and op == "!=" and t == "0":
+            op, t = ">=", "1"  # a count is never negative
+        alts.append(Agg(agg.func, agg.elems, None, (op, t)))
+    return alts[0] if len(alts) == 1 else _Either(tuple(alts))
 
 
 def parse_program(text: str) -> list[Clause]:
@@ -173,10 +207,13 @@ def parse_program(text: str) -> list[Clause]:
         body = []
         for b in stm.body:
             if b.ast_type == ASTType.Literal:
-                body.append(_lit_from_ast(b))
+                item = _lit_from_ast(b)
+                body.append(item.alternatives if isinstance(item, _Either) else (item,))
             else:
                 raise ValueError(f"unsupported body element: {b}")
-        clauses.append(Clause(h, body))
+        # a negated two-sided aggregate is a disjunction: one clause per alternative
+        for choice in itertools.product(*body):
+            clauses.append(Clause(h, list(choice)))
 
     parse_string(text, cb)
     return clauses

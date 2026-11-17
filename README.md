@@ -108,4 +108,5 @@ node --test tests/js/*.test.cjs
 `tests/fixtures/editor/*.{model.json,compiled.lp}` are goldens captured from the original
 JS editor (`node tests/js/capture_goldens.cjs <blocks.js>`); the Python conversion must
 match them, and a round trip through the editor must accept the same molecules
-(`tests/test_editor_semantics.py`).
+(`tests/test_editor_semantics.py`). Where the Python converter fixes a bug of the JS one
+(`only_guard`, `not_count_*`), the golden was written by the Python converter instead.

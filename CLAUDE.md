@@ -24,11 +24,14 @@ Guidance for working in this repo. Keep entries factual and present-tense.
   `tests/fixtures/editor/`, captured from icarus' original `blocks.js`.
 - `editor/boxes.py` turns the editor's "not" boxes (`#count{…} = 0`) into negated helper
   predicates for the explainer; `api.prepare` applies it (and `chem.efg.install()`).
+- `logic/rule_ir.py` has no negated aggregates: `not #count{…} > 2` parses as
+  `#count{…} <= 2`, and a negated two-sided count as two clauses (one per failing bound).
 
 ## Testing
 
 - `tests/test_editor_semantics.py` grounds each fixture rule and its editor round trip on
   `tests/fixtures/molecules.tsv` and requires the same accepted molecules. Fixture rules must be
-  safe ASP. `only_guard` is a known lossy case (xfail): a clause that is only `has_atom(M,_)`.
+  safe ASP. `only_guard` and `not_count_*` goldens come from the Python converter (bug fixes
+  over blocks.js), all others from blocks.js.
 - Explanation tests check verdicts (`definitions/expected.tsv`) and that texts contain no rule
   syntax; no pixel comparisons.

@@ -1,4 +1,9 @@
-"""ASP <-> editor model, against goldens captured from icarus' original blocks.js."""
+"""ASP <-> editor model, against goldens captured from icarus' original blocks.js.
+
+Deliberate departures from blocks.js (goldens written by the Python converter):
+``only_guard`` keeps its atom (blocks.js dropped the clause), and the ``not_count_*``
+cases read a negated count as the opposite bound (blocks.js ignored the ``not``).
+"""
 
 from __future__ import annotations
 

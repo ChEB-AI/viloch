@@ -1,7 +1,14 @@
 {
   "clauses": [
     {
-      "atoms": [],
+      "atoms": [
+        {
+          "id": "a1",
+          "chips": [],
+          "x": 24,
+          "y": 20
+        }
+      ],
       "molChips": [],
       "bonds": [],
       "groups": [],

@@ -18,3 +18,9 @@ efg_phenol	phenol	true
 efg_phenol	ethanol	false
 library_aux	ethanol	true
 library_aux	benzene	false
+at_most_one_oxygen	ethanol	true
+at_most_one_oxygen	acetic acid	false
+at_most_one_oxygen	hexane	true
+not_one_oxygen	ethanol	false
+not_one_oxygen	acetic acid	true
+not_one_oxygen	hexane	true

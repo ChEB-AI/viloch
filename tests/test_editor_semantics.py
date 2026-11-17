@@ -42,22 +42,7 @@ def accepts(rule: str, smiles: str) -> bool:
     return "concept(m)" in found
 
 
-# Known editor limitation (inherited from icarus): a clause that is only the guard
-# has_atom(M,_) ("every molecule") parses to an empty clause, which compiles to nothing.
-KNOWN_LOSSY = {"only_guard"}
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        pytest.param(
-            n, marks=pytest.mark.xfail(reason="guard-only clause", strict=True)
-        )
-        if n in KNOWN_LOSSY
-        else n
-        for n in editor_cases()
-    ],
-)
+@pytest.mark.parametrize("name", editor_cases())
 def test_round_trip_keeps_meaning(name):
     rule = (EDITOR_FIXTURES / f"{name}.lp").read_text(encoding="utf-8")
     round_trip = to_asp(from_asp(rule))

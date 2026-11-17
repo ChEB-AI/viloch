@@ -198,6 +198,8 @@ def _parse_clause(text: str, target: str, ids) -> dict:
         clauses = parse_program(text)
     except Exception as e:  # clingo syntax error, unsupported construct
         raise _Unsupported(f"it could not be parsed ({_short(e)})") from None
+    if len(clauses) > 1:  # "not L <= #count{…} <= U": count < L or count > U
+        raise _Unsupported("a “not” before a count with two bounds is an “or”")
     if len(clauses) != 1:
         raise _Unsupported("it is not a rule with a head")
     clause = clauses[0]
@@ -442,10 +444,16 @@ def _structure(mol_var: str, literals: list[dict], ids) -> dict:
     def mol_value(x):
         return _Unsupported(f"“{_key(x)}” relates the molecule to a value")
 
+    # A clause of nothing but guards ("concept(M) :- has_atom(M,_).") keeps one atom:
+    # with none it would compile to nothing.
+    only_guards = not aggs and all(lonely_guard(x) for x in plain)
+
     # Main pattern.
     for x in plain:
         pred, args, neg = x["pred"], x["args"], x["neg"]
         if lonely_guard(x):
+            if only_guards and not atoms:
+                atom_for(outer_atom, args[1])
             continue
         if not all(_is_var(a) for a in args):
             raise constant(x)
