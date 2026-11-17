@@ -1,0 +1,8 @@
+{
+  "clauses": [
+    {
+      "rawClause": "other(M) :- has_atom(M,A), o(A).",
+      "why": "its head is not concept(M)"
+    }
+  ]
+}

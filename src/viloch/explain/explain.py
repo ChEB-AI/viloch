@@ -1,0 +1,205 @@
+"""Explanations of learned ChEBI rules.
+
+- ``explain_rule``: what a rule asks for (a picture of the pattern and one or two sentences).
+- ``explain_molecule``: why a rule does or does not accept one molecule (the molecule with the match,
+  or the closest match, highlighted, and one or two sentences).
+
+Both depend only on the rule, its aux definitions and the class hierarchy, never on training data.
+"""
+
+from __future__ import annotations
+
+import functools
+import re
+from dataclasses import dataclass
+
+import pandas as pd
+from chebi_utils.read_molecule import parse_molblock, smiles_or_inchi_to_mol
+from PIL import Image
+from rdkit import Chem
+
+from viloch.explain import mol_draw
+from viloch.explain.global_figure import figure_image
+from viloch.explain.global_model import figure_model
+from viloch.explain.local_model import RuleContext, analyse
+from viloch.explain.molecule import MOL_ID
+from viloch.explain.pattern_draw import crop_to_content
+from viloch.explain.style import MAX_W, WHITE, compose, fit, header, legend
+from viloch.explain.text import global_text, local_text, plural
+
+_SEED_RE = re.compile(r"\b((?:chembl_fg|efga|efg)_[A-Za-z0-9_]+)\s*\(")
+_HEAD_RE = re.compile(r"^\s*([a-z][A-Za-z0-9_]*)\s*\(", re.M)
+
+
+@dataclass
+class Explanation:
+    text: str
+    image: Image.Image
+    fires: bool | None = (
+        None  # local explanations: whether the rule accepts the molecule
+    )
+
+
+# ── inputs ─────────────────────────────────────────────────────────────────
+
+
+def read_molecule(molecule: str | Chem.Mol) -> Chem.Mol:
+    """A molecule from SMILES, InChI or a molblock, parsed as the ChEBI dataset parses molecules."""
+    if isinstance(molecule, Chem.Mol):
+        return molecule
+    mol = (
+        parse_molblock(molecule)
+        if "M  END" in molecule
+        else smiles_or_inchi_to_mol(molecule.strip())
+    )
+    if mol is None:
+        raise ValueError(f"Could not parse molecule: {molecule!r}")
+    return mol
+
+
+def _seed_names(rule: str, aux_programs: list[dict]) -> set[str]:
+    return set(
+        _SEED_RE.findall(rule + "\n" + "\n".join(p["source"] for p in aux_programs))
+    )
+
+
+@functools.lru_cache(maxsize=8)
+def _vocabulary(src) -> dict[str, str]:
+    """``{predicate: description}`` of a seed source (building some, e.g. ChEMBL's
+    FilterCatalog, takes a while)."""
+    try:
+        return {
+            name if name.startswith(src.prefix) else src.prefix + name: desc
+            for name, desc in src.vocabulary()
+        }
+    except Exception:
+        return {}
+
+
+def _seed_descriptions(names: set[str]) -> dict:
+    """Descriptions of seeded functional-group predicates, from their vocabularies."""
+    if not names:
+        return {}
+    from chebILP.preprocessing.chebi.fg_matching import FG_SEED_SOURCES
+
+    out = {}
+    for src in FG_SEED_SOURCES.values():
+        if any(n.startswith(src.prefix) for n in names):
+            vocab = _vocabulary(src)
+            out.update({n: vocab[n] for n in names if n in vocab})
+    return out
+
+
+def _seed_facts(names: set[str], mol: Chem.Mol) -> list[str]:
+    """Facts of seeded functional-group predicates for one molecule."""
+    if not names:
+        return []
+    from chebILP.preprocessing.chebi.fg_matching import (
+        FG_SEED_SOURCES,
+        fg_atom_fact_lines,
+        fg_fact_lines,
+    )
+
+    rows = pd.DataFrame([{"mol": mol}], index=[MOL_ID])
+    lines = []
+    for src in FG_SEED_SOURCES.values():
+        want = {n for n in names if n.startswith(src.prefix)}
+        if want:
+            emit = fg_atom_fact_lines if src.atom_level else fg_fact_lines
+            lines += emit(src.matcher(rows), [MOL_ID], needed=want)
+    return lines
+
+
+def class_info(
+    rule: str, chebi_graph=None, class_name: str | None = None
+) -> tuple[str | None, str | None, list[str]]:
+    """``(class id, class name, parent names)`` of the rule's head ``chebi_<id>``.
+
+    ``class_name`` names the class when there is no ChEBI graph (or no ChEBI head).
+    """
+    m = _HEAD_RE.search(rule)
+    head = m.group(1) if m else ""
+    cid = head.split("_", 1)[1] if head.startswith("chebi_") else None
+    if cid is None or chebi_graph is None or cid not in chebi_graph:
+        return cid, class_name, []
+    node = chebi_graph.nodes[cid]
+    parents = [
+        chebi_graph.nodes[p].get("name") or f"CHEBI:{p}"
+        for p in chebi_graph.successors(cid)
+    ]
+    return cid, node.get("name"), parents
+
+
+def _rule_context(rule: str, aux_programs) -> tuple[RuleContext, set[str]]:
+    progs = list(aux_programs or [])
+    seeds = _seed_names(rule, progs)
+    rc = RuleContext.build(rule, progs)
+    rc.aux_desc.update(
+        {k: v for k, v in _seed_descriptions(seeds).items() if k not in rc.aux_desc}
+    )
+    return rc, seeds
+
+
+# ── explanations ───────────────────────────────────────────────────────────
+
+
+def explain_rule(
+    rule: str,
+    chebi_graph=None,
+    aux_programs: list[dict] | None = None,
+    class_name: str | None = None,
+) -> Explanation:
+    """Picture and short text describing what ``rule`` asks of a molecule.
+
+    ``aux_programs``: ``{"name", "description", "source"}`` of every aux predicate the
+    rule uses (:meth:`viloch.Definition.programs` after ``resolve``).
+    """
+    rc, _ = _rule_context(rule, aux_programs)
+    cid, name, parents = class_info(rule, chebi_graph, class_name)
+    fm = figure_model(rc.clauses, rc.defs, rc.aux_desc)
+    text = global_text(fm, name, parents)
+    title = name or (f"CHEBI:{cid}" if cid else "Rule")
+    return Explanation(
+        text, figure_image(fm, title, f"CHEBI:{cid}" if cid and name else "", text)
+    )
+
+
+def explain_molecule(
+    molecule: str | Chem.Mol,
+    rule: str,
+    chebi_graph=None,
+    aux_programs: list[dict] | None = None,
+    class_name: str | None = None,
+    name: str | None = None,
+) -> Explanation:
+    """Picture and short text on whether and why ``rule`` accepts ``molecule``.
+
+    ``molecule`` is a SMILES, InChI, molblock or RDKit molecule; ``name`` is used in the title.
+    """
+    mol = read_molecule(molecule)
+    rc, seeds = _rule_context(rule, aux_programs)
+    rc.programs = rc.programs + _seed_facts(seeds, mol)
+    loc = analyse(mol, rc)
+    cid, cname, parents = class_info(rule, chebi_graph, class_name)
+    text = local_text(loc, cname, parents)
+    who = name or "this molecule"
+    if cname or cid:
+        members = f"the {plural(cname)}" if cname else f"CHEBI:{cid}"
+        verdict = (
+            f"belongs to {members}" if loc.fires else f"does not belong to {members}"
+        )
+    else:
+        verdict = "satisfies the rule" if loc.fires else "does not satisfy the rule"
+    title = f"Why {who} {verdict}"
+    title = title[0].upper() + title[1:]
+    pic = crop_to_content(
+        mol_draw.draw_molecule(mol, loc.atom_cols, loc.bond_cols, loc.notes), WHITE, 16
+    )
+    width = max(min(MAX_W - 32, pic.width), 560)
+    image = compose(
+        header(title, f"CHEBI:{cid}" if cid and cname else "", text, width),
+        fit(pic, width),
+        legend(loc.legend, width),
+        width,
+    )
+    return Explanation(text, image, loc.fires)

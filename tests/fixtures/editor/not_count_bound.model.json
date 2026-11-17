@@ -1,0 +1,46 @@
+{
+  "clauses": [
+    {
+      "atoms": [
+        {
+          "id": "a1",
+          "chips": [
+            {
+              "pred": "c"
+            }
+          ],
+          "x": 24,
+          "y": 20
+        },
+        {
+          "id": "a3",
+          "chips": [
+            {
+              "pred": "o"
+            }
+          ],
+          "x": 196,
+          "y": 20,
+          "group": "a2",
+          "counted": true
+        }
+      ],
+      "molChips": [],
+      "bonds": [],
+      "groups": [
+        {
+          "id": "a2",
+          "molChips": [],
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "kind": "count",
+          "op": "<",
+          "n": 2
+        }
+      ],
+      "_needsLayout": true
+    }
+  ]
+}

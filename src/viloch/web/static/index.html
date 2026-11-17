@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>viloch: rule editor</title>
+  <link rel="stylesheet" href="static/blocks.css">
+  <link rel="stylesheet" href="static/standalone.css">
+</head>
+<body>
+  <header>
+    <h1>viloch</h1>
+    <span class="muted">ASP rules &harr; building blocks</span>
+  </header>
+  <main>
+    <section class="card text-pane">
+      <h2>Rule (ASP)</h2>
+      <p class="muted">The main rule plus any auxiliary predicates it defines
+        (<code>% PREDICATE_NAME:</code> / <code>% DESCRIPTION:</code> headers).</p>
+      <textarea id="asp-text" class="rule-text" rows="14" spellcheck="false">concept(M) :- has_atom(M,C), c(C), has_atom(M,O1), o(O1), bDOUBLE(C,O1), has_atom(M,O2), o(O2), has_1_hs(O2), bSINGLE(C,O2).</textarea>
+      <div class="row">
+        <button id="to-blocks" title="Parse the text into blocks">Text &rarr; blocks</button>
+        <button id="to-text" class="ghost" title="Write the blocks as text">Blocks &rarr; text</button>
+        <label><input type="checkbox" id="auto-sync" checked> keep in sync</label>
+        <label><input type="checkbox" id="unfold"> unfold auxiliary predicates</label>
+      </div>
+      <div id="status" class="status" role="status"></div>
+
+      <h2>Explain</h2>
+      <div class="row">
+        <button id="explain-rule" class="ghost">What does the rule ask for?</button>
+      </div>
+      <div class="row">
+        <input id="smiles" placeholder="SMILES, e.g. CC(=O)O" size="28">
+        <input id="mol-name" placeholder="name (optional)" size="14">
+        <button id="explain-molecule" class="ghost">Why (not) this molecule?</button>
+      </div>
+      <div id="explanation" class="explanation"></div>
+    </section>
+
+    <section class="card editor-pane">
+      <h2>Blocks</h2>
+      <div class="block-editor">
+        <div id="block-palette" class="block-palette"></div>
+        <div class="block-main"><div id="block-canvas" class="block-canvas"></div></div>
+      </div>
+    </section>
+  </main>
+  <script src="static/blocks.js"></script>
+  <script src="static/standalone.js"></script>
+</body>
+</html>

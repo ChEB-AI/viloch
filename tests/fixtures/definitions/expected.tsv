@@ -1,0 +1,26 @@
+definition	molecule	fires
+carboxylic_acid	acetic acid	true
+carboxylic_acid	ethanol	false
+carboxylic_acid	glycine	true
+aliphatic_nitrogen	glycine	true
+aliphatic_nitrogen	pyridine	false
+aliphatic_nitrogen	ethanol	false
+oxygen_without_nitrogen	ethanol	true
+oxygen_without_nitrogen	glycine	false
+two_or_more_oxygens	acetic acid	true
+two_or_more_oxygens	ethanol	false
+alternatives	thiophene	true
+alternatives	ammonium	true
+alternatives	pyridine	false
+recursive	glycine	true
+recursive	ethanol	false
+efg_phenol	phenol	true
+efg_phenol	ethanol	false
+library_aux	ethanol	true
+library_aux	benzene	false
+at_most_one_oxygen	ethanol	true
+at_most_one_oxygen	acetic acid	false
+at_most_one_oxygen	hexane	true
+not_one_oxygen	ethanol	false
+not_one_oxygen	acetic acid	true
+not_one_oxygen	hexane	true

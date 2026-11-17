@@ -1,0 +1,22 @@
+name	smiles
+acetic acid	CC(=O)O
+acetate	CC(=O)[O-]
+ethanol	CCO
+benzene	c1ccccc1
+phenol	Oc1ccccc1
+pyridine	c1ccncc1
+glycine	NCC(=O)O
+ammonium	[NH4+]
+hydrazine	NN
+urea	NC(N)=O
+thiophene	c1ccsc1
+selenide	[Se-2]
+hexane	CCCCCC
+glucose	OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O
+caffeine	Cn1cnc2c1c(=O)n(C)c(=O)n2C
+oxalic acid	OC(=O)C(=O)O
+hydrogen peroxide	OO
+cyclohexane	C1CCCCC1
+tetramethylammonium	C[N+](C)(C)C
+pyridinium	c1cc[nH+]cc1
+benzoate	[O-]C(=O)c1ccccc1

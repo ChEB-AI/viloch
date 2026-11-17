@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ChEB-AI/viloch/editor-model.schema.json",
+  "title": "viloch block-editor model",
+  "description": "A rule as the block editor draws it: an OR of clauses. Variables are not stored: the molecule is V0 and atom i (0-based, in `atoms` order) is V<i+1>. See viloch/editor/asp.py.",
+  "type": "object",
+  "required": ["clauses"],
+  "properties": {
+    "clauses": {
+      "type": "array",
+      "items": { "oneOf": [ { "$ref": "#/$defs/drawnClause" }, { "$ref": "#/$defs/rawClause" } ] }
+    }
+  },
+  "$defs": {
+    "pred": {
+      "description": "A predicate name; a leading \"not \" negates it. Bonds may also be the comparisons \"!=\" and \"<\".",
+      "type": "string",
+      "minLength": 1
+    },
+    "chip": {
+      "type": "object",
+      "required": ["pred"],
+      "properties": { "pred": { "$ref": "#/$defs/pred" } }
+    },
+    "id": { "type": "string", "minLength": 1 },
+    "atom": {
+      "type": "object",
+      "required": ["id", "chips"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "chips": { "type": "array", "items": { "$ref": "#/$defs/chip" } },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "group": { "$ref": "#/$defs/id", "description": "the box the atom belongs to" },
+        "counted": { "type": "boolean", "description": "counted by its count box" },
+        "bare": { "type": "boolean", "description": "written without has_atom(V0, X) while something else binds it" }
+      }
+    },
+    "bond": {
+      "type": "object",
+      "required": ["a", "b", "pred"],
+      "properties": {
+        "a": { "$ref": "#/$defs/id" },
+        "b": { "$ref": "#/$defs/id" },
+        "pred": { "$ref": "#/$defs/pred" }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["id", "kind", "molChips"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["not", "count"] },
+        "op": { "enum": ["=", ">=", "<=", ">", "<", "between"] },
+        "n": { "type": ["integer", "string"] },
+        "n2": { "type": ["integer", "string", "null"] },
+        "inMol": { "type": "boolean", "description": "a not box over molecule properties" },
+        "molChips": { "type": "array", "items": { "$ref": "#/$defs/chip" } },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "w": { "type": "number" }, "h": { "type": "number" }
+      }
+    },
+    "drawnClause": {
+      "type": "object",
+      "required": ["atoms", "molChips", "bonds", "groups"],
+      "properties": {
+        "atoms": { "type": "array", "items": { "$ref": "#/$defs/atom" } },
+        "molChips": { "type": "array", "items": { "$ref": "#/$defs/chip" } },
+        "bonds": { "type": "array", "items": { "$ref": "#/$defs/bond" } },
+        "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
+        "_needsLayout": { "type": "boolean", "description": "the editor should lay the atoms out" }
+      },
+      "not": { "required": ["rawClause"] }
+    },
+    "rawClause": {
+      "type": "object",
+      "required": ["rawClause"],
+      "properties": {
+        "rawClause": { "type": "string", "description": "clause text the editor has no blocks for" },
+        "why": { "type": "string" }
+      }
+    }
+  }
+}
