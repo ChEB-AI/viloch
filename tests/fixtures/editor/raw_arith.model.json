@@ -1,0 +1,8 @@
+{
+  "clauses": [
+    {
+      "rawClause": "concept(M) :- mol_weight(M,W), W > 150.",
+      "why": "no block for “W > 150”"
+    }
+  ]
+}

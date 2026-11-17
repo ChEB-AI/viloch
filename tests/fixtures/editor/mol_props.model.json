@@ -1,0 +1,18 @@
+{
+  "clauses": [
+    {
+      "atoms": [],
+      "molChips": [
+        {
+          "pred": "aromatic"
+        },
+        {
+          "pred": "net_charge_negative"
+        }
+      ],
+      "bonds": [],
+      "groups": [],
+      "_needsLayout": true
+    }
+  ]
+}

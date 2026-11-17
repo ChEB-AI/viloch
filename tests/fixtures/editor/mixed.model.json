@@ -1,0 +1,26 @@
+{
+  "clauses": [
+    {
+      "atoms": [
+        {
+          "id": "a1",
+          "chips": [
+            {
+              "pred": "o"
+            }
+          ],
+          "x": 24,
+          "y": 20
+        }
+      ],
+      "molChips": [],
+      "bonds": [],
+      "groups": [],
+      "_needsLayout": true
+    },
+    {
+      "rawClause": "concept(M) :- mol_weight(M,W), W > 150.",
+      "why": "no block for “W > 150”"
+    }
+  ]
+}

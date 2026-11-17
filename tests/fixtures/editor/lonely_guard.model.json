@@ -1,0 +1,15 @@
+{
+  "clauses": [
+    {
+      "atoms": [],
+      "molChips": [
+        {
+          "pred": "aromatic"
+        }
+      ],
+      "bonds": [],
+      "groups": [],
+      "_needsLayout": true
+    }
+  ]
+}

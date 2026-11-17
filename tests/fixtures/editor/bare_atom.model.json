@@ -1,0 +1,35 @@
+{
+  "clauses": [
+    {
+      "atoms": [
+        {
+          "id": "a1",
+          "chips": [],
+          "x": 24,
+          "y": 20
+        },
+        {
+          "id": "a2",
+          "chips": [
+            {
+              "pred": "c"
+            }
+          ],
+          "x": 196,
+          "y": 20,
+          "bare": true
+        }
+      ],
+      "molChips": [],
+      "bonds": [
+        {
+          "a": "a1",
+          "b": "a2",
+          "pred": "aux_atom_element"
+        }
+      ],
+      "groups": [],
+      "_needsLayout": true
+    }
+  ]
+}

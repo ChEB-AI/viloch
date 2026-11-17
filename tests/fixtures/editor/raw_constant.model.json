@@ -1,0 +1,8 @@
+{
+  "clauses": [
+    {
+      "rawClause": "concept(M) :- has_atom(M,A), charge(A,1).",
+      "why": "“charge(A,1)” has a constant argument"
+    }
+  ]
+}

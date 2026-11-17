@@ -1,0 +1,22 @@
+{
+  "clauses": [
+    {
+      "atoms": [
+        {
+          "id": "a1",
+          "chips": [
+            {
+              "pred": "o"
+            }
+          ],
+          "x": 24,
+          "y": 20
+        }
+      ],
+      "molChips": [],
+      "bonds": [],
+      "groups": [],
+      "_needsLayout": true
+    }
+  ]
+}

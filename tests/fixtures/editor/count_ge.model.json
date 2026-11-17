@@ -1,0 +1,36 @@
+{
+  "clauses": [
+    {
+      "atoms": [
+        {
+          "id": "a2",
+          "chips": [
+            {
+              "pred": "o"
+            }
+          ],
+          "x": 24,
+          "y": 20,
+          "group": "a1",
+          "counted": true
+        }
+      ],
+      "molChips": [],
+      "bonds": [],
+      "groups": [
+        {
+          "id": "a1",
+          "molChips": [],
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "kind": "count",
+          "op": ">=",
+          "n": 3
+        }
+      ],
+      "_needsLayout": true
+    }
+  ]
+}
