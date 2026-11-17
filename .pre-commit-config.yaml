@@ -16,4 +16,6 @@ repos:
   hooks:
     - id: check-yaml
     - id: end-of-file-fixer
+      exclude: ^(tests/fixtures|src/viloch/resources)/
     - id: trailing-whitespace
+      exclude: ^(tests/fixtures|src/viloch/resources)/
